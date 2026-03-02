@@ -73,6 +73,7 @@ $departments_data = $pdo->query("SELECT * FROM departments WHERE IsActive = 1 OR
                 <label class="block text-xs font-bold text-gray-600 mb-1">Room Type</label>
                 <select name="type" class="w-full border border-gray-300 p-2 rounded focus:ring-1 focus:ring-maroon" required>
                     <option value="Classroom">Classroom</option>
+                    <option value="Classroom & Lab (Mixed)">Classroom & Lab (Mixed)</option>
                     <option value="Computer Lab">Computer Lab</option>
                     <option value="Physics Lab">Physics Lab</option>
                     <option value="Chemistry Lab">Chemistry Lab</option>
@@ -169,6 +170,7 @@ $departments_data = $pdo->query("SELECT * FROM departments WHERE IsActive = 1 OR
                     <label class="block text-xs font-bold text-gray-600 mb-1">Room Type</label>
                     <select name="type" id="edit_type" class="w-full border border-gray-300 p-2.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#a60b26]" required>
                         <option value="Classroom">Classroom</option>
+                        <option value="Classroom & Lab (Mixed)">Classroom & Lab (Mixed)</option>
                         <option value="Computer Lab">Computer Lab</option>
                         <option value="Physics Lab">Physics Lab</option>
                         <option value="Chemistry Lab">Chemistry Lab</option>
@@ -207,12 +209,25 @@ const depts = <?php echo json_encode($departments_data); ?>;
 function updateDepartments(selectElement, containerId, deptSelectId) {
     const container = document.getElementById(containerId);
     const deptSelect = document.getElementById(deptSelectId);
+    const label = container.querySelector('label');
+    
     if (!selectElement.value) {
         container.style.display = 'none';
         deptSelect.innerHTML = '<option value="">-- Optional --</option>';
         return;
     }
+    
     const pid = selectElement.options[selectElement.selectedIndex].getAttribute('data-pid');
+    const selectedText = selectElement.options[selectElement.selectedIndex].text.toLowerCase();
+    
+    if (label) {
+        if (selectedText.includes('intermediate') || selectedText.includes('inter')) {
+            label.innerText = 'Group';
+        } else {
+            label.innerText = 'Department';
+        }
+    }
+    
     const filteredDepts = depts.filter(d => d.ProgramID == pid);
     if (filteredDepts.length > 0) {
         container.style.display = 'block';
