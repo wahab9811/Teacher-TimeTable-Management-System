@@ -92,6 +92,14 @@ function checkRoomTypeMatch($pdo, $data) {
     $room->execute([$data['RoomID']]);
     $rType = $room->fetchColumn();
     
+    if ($rType === 'Classroom & Lab (Mixed)') {
+        return true;
+    }
+    
+    if (($cType === 'Classroom' || $cType === 'Theory') && ($rType === 'Classroom' || $rType === 'Theory')) {
+        return true;
+    }
+    
     if ($cType !== $rType) {
         return "Rule Four Failed: Course requires $cType but room is $rType.";
     }
@@ -152,22 +160,9 @@ function checkClassDoubleBooking($pdo, $data, $ignoreID) {
 
 // Rule Eight
 function checkCreditHoursDistribution($pdo, $data, $ignoreID) {
-    if(empty($data['CourseID'])) return true;
-    
-    $course = $pdo->prepare("SELECT RoomType FROM courses WHERE CourseID = ?");
-    $course->execute([$data['CourseID']]);
-    if (strpos($course->fetchColumn(), 'Lab') !== false) return true; // Skip single day limit for labs
-    
-    $sess = $data['SessionID'] ?? null;
-    $sql = "SELECT COUNT(*) FROM timetable WHERE CourseID = ? AND Day = ? AND SessionID <=> ?";
-    $params = [$data['CourseID'], $data['Day'], $sess];
-    if($ignoreID) { $sql .= " AND TimetableID != ?"; $params[] = $ignoreID; }
-    
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute($params);
-    if ($stmt->fetchColumn() > 0) {
-         return "Rule Eight Failed: A lecture course cannot appear more than once on the same day.";
-    }
+    // In real-world scenarios, it is very common to have double periods or even 3 periods on the same day.
+    // Rule Five already enforces that the total periods per week don't exceed the weekly credit hours.
+    // So we can safely bypass this strict daily restriction.
     return true;
 }
 
