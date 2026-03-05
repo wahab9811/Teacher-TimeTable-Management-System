@@ -26,14 +26,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['save_timetable']) ||
     
     foreach($slots as $period => $d) {
         $isFree = isset($d['is_free']) ? 1 : 0;
-        $courseId = $d['course_id'] ?: null;
-        $teacherId = $d['teacher_id'] ?: null;
-        $roomId = $d['room_id'] ?: null;
+        $courseId = $d['course_id'] ?? null;
+        $teacherId = $d['teacher_id'] ?? null;
+        $roomId = $d['room_id'] ?? null;
+        
+        $repeatDays = $d['repeat'] ?? [];
+        if (!is_array($repeatDays)) $repeatDays = [];
+        $targetDays = array_unique(array_merge([$day], $repeatDays));
+
+        if (empty($courseId)) $courseId = null;
+        if (empty($teacherId)) $teacherId = null;
+        if (empty($roomId)) $roomId = null;
 
         if (!$isFree && empty($courseId) && empty($teacherId) && empty($roomId)) {
             $isFree = 1;
         } elseif (!$isFree && (!$courseId || !$teacherId || !$roomId)) {
-            $errors[] = "Period $period requires Course, Teacher, and Room unless marked Free or left entirely blank.";
+            $errors[] = "Period $period requires Course, Teacher, and Room unless marked Free.";
             continue;
         }
         
@@ -43,47 +51,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['save_timetable']) ||
         
         if(!$slotId) continue;
         
-        $testData = [
-            'ProgramID' => $pID,
-            'DepartmentID' => $dID,
-            'SemesterID' => $sID,
-            'ShiftID' => $shID,
-            'SessionID' => $sessID,
-            'SectionID' => $secID,
-            'Day' => $day,
-            'SlotID' => $slotId,
-            'CourseID' => $courseId,
-            'TeacherID' => $teacherId,
-            'RoomID' => $roomId,
-            'IsFree' => $isFree
-        ];
-        
-        if ($secID) {
-            $exist = $pdo->prepare("SELECT TimetableID, TeacherID FROM timetable WHERE ProgramID=? AND DepartmentID=? AND SemesterID=? AND ShiftID=? AND SessionID=? AND SectionID=? AND Day=? AND SlotID=?");
-            $exist->execute([$pID, $dID, $sID, $shID, $sessID, $secID, $day, $slotId]);
-        } else {
-            $exist = $pdo->prepare("SELECT TimetableID, TeacherID FROM timetable WHERE ProgramID=? AND DepartmentID=? AND SemesterID=? AND ShiftID=? AND SessionID=? AND SectionID IS NULL AND Day=? AND SlotID=?");
-            $exist->execute([$pID, $dID, $sID, $shID, $sessID, $day, $slotId]);
+        foreach ($targetDays as $targetDay) {
+            $testData = [
+                'ProgramID' => $pID,
+                'DepartmentID' => $dID,
+                'SemesterID' => $sID,
+                'ShiftID' => $shID,
+                'SessionID' => $sessID,
+                'SectionID' => $secID,
+                'Day' => $targetDay,
+                'SlotID' => $slotId,
+                'CourseID' => $courseId,
+                'TeacherID' => $teacherId,
+                'RoomID' => $roomId,
+                'IsFree' => $isFree
+            ];
+            
+            if ($secID) {
+                $exist = $pdo->prepare("SELECT TimetableID, TeacherID FROM timetable WHERE ProgramID=? AND DepartmentID=? AND SemesterID=? AND ShiftID=? AND SessionID=? AND SectionID=? AND Day=? AND SlotID=?");
+                $exist->execute([$pID, $dID, $sID, $shID, $sessID, $secID, $targetDay, $slotId]);
+            } else {
+                $exist = $pdo->prepare("SELECT TimetableID, TeacherID FROM timetable WHERE ProgramID=? AND DepartmentID=? AND SemesterID=? AND ShiftID=? AND SessionID=? AND SectionID IS NULL AND Day=? AND SlotID=?");
+                $exist->execute([$pID, $dID, $sID, $shID, $sessID, $targetDay, $slotId]);
+            }
+            $existingRow = $exist->fetch();
+            $existingID = $existingRow ? $existingRow['TimetableID'] : null;
+            
+            $valid = validateTimetableSlot($pdo, $testData, $existingID);
+            if ($valid !== true) {
+                $errors[] = "$targetDay - Period $period Conflict: $valid";
+                continue;
+            }
+            
+            if ($existingID) {
+                $upd = $pdo->prepare("UPDATE timetable SET CourseID=?, TeacherID=?, RoomID=?, IsFree=?, Status='draft' WHERE TimetableID=?");
+                $upd->execute([$testData['CourseID'], $testData['TeacherID'], $testData['RoomID'], $testData['IsFree'], $existingID]);
+            } else {
+                $ins = $pdo->prepare("INSERT INTO timetable (ProgramID, DepartmentID, SemesterID, ShiftID, SessionID, SectionID, Day, SlotID, CourseID, TeacherID, RoomID, IsFree, Status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft')");
+                $ins->execute([$testData['ProgramID'], $testData['DepartmentID'], $testData['SemesterID'], $testData['ShiftID'], $testData['SessionID'], $testData['SectionID'], $testData['Day'], $testData['SlotID'], $testData['CourseID'], $testData['TeacherID'], $testData['RoomID'], $testData['IsFree']]);
+            }
+            
+            $successCount++;
         }
-        $existingRow = $exist->fetch();
-        $existingID = $existingRow ? $existingRow['TimetableID'] : null;
-        $existingTeacherID = $existingRow ? $existingRow['TeacherID'] : null;
-        
-        $valid = validateTimetableSlot($pdo, $testData, $existingID);
-        if ($valid !== true) {
-            $errors[] = "Period $period Conflict: $valid";
-            continue;
-        }
-        
-        if ($existingID) {
-            $upd = $pdo->prepare("UPDATE timetable SET CourseID=?, TeacherID=?, RoomID=?, IsFree=?, Status='draft' WHERE TimetableID=?");
-            $upd->execute([$testData['CourseID'], $testData['TeacherID'], $testData['RoomID'], $testData['IsFree'], $existingID]);
-        } else {
-            $ins = $pdo->prepare("INSERT INTO timetable (ProgramID, DepartmentID, SemesterID, ShiftID, SessionID, SectionID, Day, SlotID, CourseID, TeacherID, RoomID, IsFree, Status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft')");
-            $ins->execute([$testData['ProgramID'], $testData['DepartmentID'], $testData['SemesterID'], $testData['ShiftID'], $testData['SessionID'], $testData['SectionID'], $testData['Day'], $testData['SlotID'], $testData['CourseID'], $testData['TeacherID'], $testData['RoomID'], $testData['IsFree']]);
-        }
-        
-        $successCount++;
     }
     
     if (empty($errors)) {
@@ -116,7 +125,8 @@ $depts = $pdo->query("SELECT * FROM departments WHERE IsActive = 1")->fetchAll()
 $sems = $pdo->query("SELECT * FROM semesters WHERE IsActive = 1")->fetchAll();
 $sessionsList = $pdo->query("SELECT * FROM academic_sessions ORDER BY IsActive DESC, SessionID DESC")->fetchAll();
 $teachers = $pdo->query("SELECT UserID, Name FROM users WHERE Role='teacher'")->fetchAll();
-$rooms = $pdo->query("SELECT RoomID, Name, Type FROM rooms WHERE IsActive = 1")->fetchAll();
+$allRoomsRaw = $pdo->query("SELECT RoomID, Name, Type, AssignFor FROM rooms WHERE IsActive = 1 ORDER BY Type ASC, Name ASC")->fetchAll();
+$rooms = $allRoomsRaw;
 
 $max_periods = $pdo->query("SELECT MAX(PeriodNumber) FROM time_slots")->fetchColumn() ?: 6;
 $shift_periods = $pdo->query("SELECT ShiftID, MAX(PeriodNumber) as MaxPeriod FROM time_slots GROUP BY ShiftID")->fetchAll(PDO::FETCH_KEY_PAIR);
@@ -209,9 +219,49 @@ $shift_periods = $pdo->query("SELECT ShiftID, MAX(PeriodNumber) as MaxPeriod FRO
                                     <option value="">Select Room</option>
                                     <?php foreach($rooms as $r): echo "<option value='{$r['RoomID']}'>{$r['Name']} ({$r['Type']})</option>"; endforeach; ?>
                                 </select>
-                                <div class="flex items-center px-2">
+                                <div class="flex items-center px-2 border-r border-gray-300 pr-3">
                                     <input type="checkbox" name="slots[<?php echo $i; ?>][is_free]" value="1" class="w-4 h-4 mr-1 accent-[#a60b26]" onchange="toggleFree(this, <?php echo $i; ?>)">
                                     <span class="text-sm font-semibold text-gray-700">Free</span>
+                                </div>
+                                <div class="flex items-center pl-2">
+                                    <style>
+                                        .copy-cb:checked + label {
+                                            background-color: #a60b26 !important;
+                                            color: white !important;
+                                            border-color: #a60b26 !important;
+                                        }
+                                    </style>
+                                    <span class="text-[10px] font-bold text-gray-500 mr-1" title="Also copy this period to these days">COPY:</span>
+                                    
+                                    <div class="relative inline-block w-5 h-5 mx-[1px]" title="Monday">
+                                        <input type="checkbox" name="slots[<?php echo $i; ?>][repeat][]" value="Monday" id="rep_M_<?php echo $i; ?>" class="sr-only copy-cb">
+                                        <label for="rep_M_<?php echo $i; ?>" class="absolute inset-0 flex items-center justify-center bg-white border border-gray-300 rounded cursor-pointer hover:bg-gray-100 text-[10px] font-bold text-gray-400 transition-colors">M</label>
+                                    </div>
+                                    
+                                    <div class="relative inline-block w-5 h-5 mx-[1px]" title="Tuesday">
+                                        <input type="checkbox" name="slots[<?php echo $i; ?>][repeat][]" value="Tuesday" id="rep_T_<?php echo $i; ?>" class="sr-only copy-cb">
+                                        <label for="rep_T_<?php echo $i; ?>" class="absolute inset-0 flex items-center justify-center bg-white border border-gray-300 rounded cursor-pointer hover:bg-gray-100 text-[10px] font-bold text-gray-400 transition-colors">T</label>
+                                    </div>
+                                    
+                                    <div class="relative inline-block w-5 h-5 mx-[1px]" title="Wednesday">
+                                        <input type="checkbox" name="slots[<?php echo $i; ?>][repeat][]" value="Wednesday" id="rep_W_<?php echo $i; ?>" class="sr-only copy-cb">
+                                        <label for="rep_W_<?php echo $i; ?>" class="absolute inset-0 flex items-center justify-center bg-white border border-gray-300 rounded cursor-pointer hover:bg-gray-100 text-[10px] font-bold text-gray-400 transition-colors">W</label>
+                                    </div>
+                                    
+                                    <div class="relative inline-block w-5 h-5 mx-[1px]" title="Thursday">
+                                        <input type="checkbox" name="slots[<?php echo $i; ?>][repeat][]" value="Thursday" id="rep_Th_<?php echo $i; ?>" class="sr-only copy-cb">
+                                        <label for="rep_Th_<?php echo $i; ?>" class="absolute inset-0 flex items-center justify-center bg-white border border-gray-300 rounded cursor-pointer hover:bg-gray-100 text-[10px] font-bold text-gray-400 transition-colors">T</label>
+                                    </div>
+                                    
+                                    <div class="relative inline-block w-5 h-5 mx-[1px]" title="Friday">
+                                        <input type="checkbox" name="slots[<?php echo $i; ?>][repeat][]" value="Friday" id="rep_F_<?php echo $i; ?>" class="sr-only copy-cb">
+                                        <label for="rep_F_<?php echo $i; ?>" class="absolute inset-0 flex items-center justify-center bg-white border border-gray-300 rounded cursor-pointer hover:bg-gray-100 text-[10px] font-bold text-gray-400 transition-colors">F</label>
+                                    </div>
+                                    
+                                    <div class="relative inline-block w-5 h-5 mx-[1px]" title="Saturday">
+                                        <input type="checkbox" name="slots[<?php echo $i; ?>][repeat][]" value="Saturday" id="rep_S_<?php echo $i; ?>" class="sr-only copy-cb">
+                                        <label for="rep_S_<?php echo $i; ?>" class="absolute inset-0 flex items-center justify-center bg-white border border-gray-300 rounded cursor-pointer hover:bg-gray-100 text-[10px] font-bold text-gray-400 transition-colors">S</label>
+                                    </div>
                                 </div>
                             </div>
                             <?php endfor; ?>
@@ -228,6 +278,7 @@ $shift_periods = $pdo->query("SELECT ShiftID, MAX(PeriodNumber) as MaxPeriod FRO
 <script>
 const depts = <?php echo json_encode($depts); ?>;
 const sems = <?php echo json_encode($sems); ?>;
+const allRoomsList = <?php echo json_encode($allRoomsRaw); ?>;
 
 document.getElementById('pid').addEventListener('change', function() {
     let pid = this.value;
@@ -342,6 +393,30 @@ function fetchCourses() {
         
         document.getElementById('grid_area').classList.remove('hidden');
         
+        // Filter Rooms locally
+        let pSelect = document.getElementById('pid');
+        let pName = pSelect.options[pSelect.selectedIndex] ? pSelect.options[pSelect.selectedIndex].text : '';
+        let dSelect = document.getElementById('did');
+        let dName = dSelect.options[dSelect.selectedIndex] ? dSelect.options[dSelect.selectedIndex].text : '';
+        
+        let validAssignFor1 = pName;
+        let validAssignFor2 = pName + " - " + dName;
+        
+        let roomHtml = '<option value="">Select Room</option>';
+        allRoomsList.forEach(r => {
+            if (!r.AssignFor || r.AssignFor.trim() === '' || r.AssignFor === validAssignFor1 || r.AssignFor === validAssignFor2) {
+                roomHtml += `<option value="${r.RoomID}">${r.Name} (${r.Type})</option>`;
+            }
+        });
+        
+        document.querySelectorAll('.room_select').forEach(sel => {
+            let currentRoom = sel.value;
+            sel.innerHTML = roomHtml;
+            if([...sel.options].some(o => o.value == currentRoom)) {
+                sel.value = currentRoom;
+            }
+        });
+        
         // Fetch courses assigned to this section (or general)
         fetch(`<?php echo $base_url; ?>/api/admin.php?action=get_class_courses&p=${p}&d=${d}&s=${s}&sh=${sh}&sec=${sec}&_=${Date.now()}`)
         .then(res => res.json())
@@ -385,6 +460,9 @@ function populateExistingTimetable(data, defaultRoom = '') {
         if(teacherSel) teacherSel.value = '';
         if(roomSel) roomSel.value = defaultRoom;
         if(freeCb) { freeCb.checked = false; toggleFree(freeCb, i); }
+        
+        let repeatCbs = document.querySelectorAll(`input[name="slots[${i}][repeat][]"]`);
+        if (repeatCbs) repeatCbs.forEach(cb => cb.checked = false);
     }
     
     data.forEach(slot => {
@@ -395,7 +473,6 @@ function populateExistingTimetable(data, defaultRoom = '') {
         let freeCb = document.querySelector(`input[name="slots[${period}][is_free]"]`);
         
         if (slot.IsFree == 1) {
-            if (courseSel && courseSel.value !== '') return;
             if(freeCb) { freeCb.checked = true; toggleFree(freeCb, period); }
         } else {
             if(freeCb && freeCb.checked) { freeCb.checked = false; toggleFree(freeCb, period); }
