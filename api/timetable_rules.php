@@ -68,7 +68,11 @@ function checkTeacherDailyLimit($pdo, $data, $ignoreID) {
     $sess = $data['SessionID'] ?? null;
     $sql = "SELECT COUNT(*) FROM timetable WHERE TeacherID = ? AND ShiftID = ? AND Day = ? AND IsFree = 0 AND SessionID <=> ?";
     $params = [$data['TeacherID'], $data['ShiftID'], $data['Day'], $sess];
-    if($ignoreID) { $sql .= " AND TimetableID != ?"; $params[] = $ignoreID; }
+    if($ignoreID) { 
+        $ids = is_array($ignoreID) ? $ignoreID : [$ignoreID];
+        $sql .= " AND TimetableID NOT IN (" . implode(',', array_fill(0, count($ids), '?')) . ")"; 
+        $params = array_merge($params, $ids); 
+    }
     
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
@@ -82,6 +86,7 @@ function checkTeacherDailyLimit($pdo, $data, $ignoreID) {
 
 // Rule Four
 function checkRoomTypeMatch($pdo, $data) {
+    if(!empty($data['SkipRuleFour'])) return true;
     if(empty($data['CourseID']) || empty($data['RoomID'])) return true;
     
     $course = $pdo->prepare("SELECT RoomType FROM courses WHERE CourseID = ?");
@@ -92,14 +97,16 @@ function checkRoomTypeMatch($pdo, $data) {
     $room->execute([$data['RoomID']]);
     $rType = $room->fetchColumn();
     
+    // Theory / Simple courses can be held in ANY room (Classrooms OR Labs)
+    if ($cType === 'Classroom' || $cType === 'Theory') {
+        return true;
+    }
+    
     if ($rType === 'Classroom & Lab (Mixed)') {
         return true;
     }
     
-    if (($cType === 'Classroom' || $cType === 'Theory') && ($rType === 'Classroom' || $rType === 'Theory')) {
-        return true;
-    }
-    
+    // For Lab courses, the room must exactly match the required lab type
     if ($cType !== $rType) {
         return "Rule Four Failed: Course requires $cType but room is $rType.";
     }
@@ -114,7 +121,11 @@ function checkTeacherDoubleBooking($pdo, $data, $ignoreID) {
     $sess = $data['SessionID'] ?? null;
     $sql = "SELECT COUNT(*) FROM timetable WHERE TeacherID = ? AND Day = ? AND SlotID = ? AND SessionID <=> ?";
     $params = [$data['TeacherID'], $data['Day'], $data['SlotID'], $sess];
-    if($ignoreID) { $sql .= " AND TimetableID != ?"; $params[] = $ignoreID; }
+    if($ignoreID) { 
+        $ids = is_array($ignoreID) ? $ignoreID : [$ignoreID];
+        $sql .= " AND TimetableID NOT IN (" . implode(',', array_fill(0, count($ids), '?')) . ")"; 
+        $params = array_merge($params, $ids); 
+    }
     
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
@@ -131,7 +142,11 @@ function checkRoomDoubleBooking($pdo, $data, $ignoreID) {
     $sess = $data['SessionID'] ?? null;
     $sql = "SELECT COUNT(*) FROM timetable WHERE RoomID = ? AND Day = ? AND SlotID = ? AND SessionID <=> ?";
     $params = [$data['RoomID'], $data['Day'], $data['SlotID'], $sess];
-    if($ignoreID) { $sql .= " AND TimetableID != ?"; $params[] = $ignoreID; }
+    if($ignoreID) { 
+        $ids = is_array($ignoreID) ? $ignoreID : [$ignoreID];
+        $sql .= " AND TimetableID NOT IN (" . implode(',', array_fill(0, count($ids), '?')) . ")"; 
+        $params = array_merge($params, $ids); 
+    }
     
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
@@ -141,14 +156,17 @@ function checkRoomDoubleBooking($pdo, $data, $ignoreID) {
     return true;
 }
 
-// Rule Seven
 function checkClassDoubleBooking($pdo, $data, $ignoreID) {
     if(!array_key_exists('SectionID', $data)) $data['SectionID'] = null; // safety
     
     $sess = $data['SessionID'] ?? null;
-    $sql = "SELECT COUNT(*) FROM timetable WHERE ProgramID = ? AND DepartmentID = ? AND SemesterID = ? AND ShiftID = ? AND SectionID <=> ? AND Day = ? AND SlotID = ? AND SessionID <=> ?";
+    $sql = "SELECT COUNT(*) FROM timetable WHERE ProgramID = ? AND DepartmentID = ? AND SemesterID = ? AND ShiftID = ? AND SectionID <=> ? AND Day = ? AND SlotID = ? AND IsFree = 0 AND SessionID <=> ?";
     $params = [$data['ProgramID'], $data['DepartmentID'], $data['SemesterID'], $data['ShiftID'], $data['SectionID'], $data['Day'], $data['SlotID'], $sess];
-    if($ignoreID) { $sql .= " AND TimetableID != ?"; $params[] = $ignoreID; }
+    if($ignoreID) { 
+        $ids = is_array($ignoreID) ? $ignoreID : [$ignoreID];
+        $sql .= " AND TimetableID NOT IN (" . implode(',', array_fill(0, count($ids), '?')) . ")"; 
+        $params = array_merge($params, $ids); 
+    }
     
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
@@ -180,7 +198,11 @@ function checkWeeklyLoadLimit($pdo, $data, $ignoreID) {
     $sess = $data['SessionID'] ?? null;
     $sql = "SELECT COUNT(*) FROM timetable WHERE TeacherID = ? AND IsFree = 0 AND SessionID <=> ?";
     $params = [$data['TeacherID'], $sess];
-    if($ignoreID) { $sql .= " AND TimetableID != ?"; $params[] = $ignoreID; }
+    if($ignoreID) { 
+        $ids = is_array($ignoreID) ? $ignoreID : [$ignoreID];
+        $sql .= " AND TimetableID NOT IN (" . implode(',', array_fill(0, count($ids), '?')) . ")"; 
+        $params = array_merge($params, $ids); 
+    }
     
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);

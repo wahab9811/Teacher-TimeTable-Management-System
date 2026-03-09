@@ -25,23 +25,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (!$cData || !$tData) {
             $error = "Invalid selection.";
-        } elseif ($cData['SectionID'] !== $tData['SectionID']) {
-            $error = "Swap requests are strictly limited to periods within the exact same class/section to maintain curriculum structure.";
         } else {
+            // Check if both teachers belong to the same home department
+            $uDeptQ = $pdo->prepare("SELECT DepartmentID FROM users WHERE UserID=?");
+            $uDeptQ->execute([$teacherId]);
+            $uDept = $uDeptQ->fetchColumn();
+            
+            $targetUDeptQ = $pdo->prepare("SELECT DepartmentID FROM users WHERE UserID=?");
+            $targetUDeptQ->execute([$tData['TeacherID']]);
+            $targetUDept = $targetUDeptQ->fetchColumn();
+
+            // They must belong to the exact same Home Department
+            if ($uDept === null || $uDept !== $targetUDept) {
+                $error = "Swap requests are strictly limited to teachers within the exact same home department.";
+            } else {
             $targetTeacher = $tData['TeacherID'];
             
             // Check conflicts for teacher A taking teacher B's slot
             $simA = $tData;
             $simA['TeacherID'] = $teacherId; 
+            $simA['SkipRuleFour'] = true;
             
             // Check conflicts for teacher B taking teacher A's slot
             $simB = $cData;
             $simB['TeacherID'] = $targetTeacher;
+            $simB['SkipRuleFour'] = true;
             
-            // Check ALL conflicts for Teacher A on new slot (ignore their current slot since it's going away)
-            $resA = validateTimetableSlot($pdo, $simA, $cData['TimetableID']);
-            // Check ALL conflicts for Teacher B on new slot (ignore their current slot)
-            $resB = validateTimetableSlot($pdo, $simB, $tData['TimetableID']);
+            // Skip BOTH of the current timetable slots since they are BOTH being cleared and swapped
+            $ignoreIDs = [$cData['TimetableID'], $tData['TimetableID']];
+            
+            // Check ALL conflicts for Teacher A on new slot
+            $resA = validateTimetableSlot($pdo, $simA, $ignoreIDs);
+            // Check ALL conflicts for Teacher B on new slot
+            $resB = validateTimetableSlot($pdo, $simB, $ignoreIDs);
             
             if ($resA !== true) $error = "Conflict for you: $resA";
             elseif ($resB !== true) $error = "Conflict for Target Teacher: $resB";
@@ -58,19 +74,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $msg = "New Swap Request from " . $_SESSION['user_name'];
                 $pdo->prepare("INSERT INTO notifications (ScopeType, TeacherID, Message) VALUES ('teacher', ?, ?)")->execute([$targetTeacher, $msg]);
             }
+            }
         }
     } else {
         $error = "Please select both periods.";
     }
 }
 
+$currentDay = date('l');
 $stmt = $pdo->prepare("SELECT t.*, ts.PeriodNumber, c.Name as CourseName, sec.Name as SectionName 
                        FROM timetable t 
                        JOIN time_slots ts ON t.SlotID=ts.SlotID 
                        JOIN courses c ON t.CourseID=c.CourseID 
                        LEFT JOIN sections sec ON t.SectionID=sec.SectionID
-                       WHERE t.TeacherID=? AND t.IsFree=0 AND t.Status='published' ORDER BY FIELD(t.Day, 'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'), ts.PeriodNumber");
-$stmt->execute([$teacherId]);
+                       WHERE t.TeacherID=? AND t.IsFree=0 AND t.Day=? AND t.Status='published' ORDER BY ts.PeriodNumber");
+$stmt->execute([$teacherId, $currentDay]);
 $mySlots = $stmt->fetchAll();
 ?>
 <?php include '../includes/header.php'; ?>
@@ -86,7 +104,7 @@ $mySlots = $stmt->fetchAll();
             <?php if($error): ?><div class="bg-red-100 text-red-700 p-4 rounded mb-6 font-medium shadow-sm border border-red-200"><?php echo htmlspecialchars($error); ?></div><?php endif; ?>
             
             <p class="text-gray-600 mb-6 bg-blue-50 p-3 rounded text-sm border border-blue-100">
-                <i class="fas fa-info-circle text-blue-500 mr-2"></i> Select your teaching period. The system will automatically show you other teachers who are teaching the <b>exact same class</b> at different times, protecting the students' curriculum structure.
+                <i class="fas fa-info-circle text-blue-500 mr-2"></i> Select your teaching period. The system will automatically show you other teachers who are teaching the <b>exact same subject/course</b> at different times, protecting the academic structure.
             </p>
 
             <form method="POST" class="space-y-6">
@@ -132,13 +150,21 @@ function fetchTargetSlots() {
     }
     
     const selectedOpt = mySelect.options[mySelect.selectedIndex];
-    const secId = selectedOpt.getAttribute('data-sec');
     const ttId = mySelect.value;
     
     targSelect.innerHTML = '<option value="">Searching for matching teachers in this section...</option>';
     
-    fetch(`/api/public.php?action=get_swap_targets_for_section&sec_id=${secId}&tt_id=${ttId}`)
-        .then(res => res.json())
+    fetch(`../api/public.php?action=get_swap_targets_for_section&tt_id=${ttId}&v=` + Date.now())
+        .then(async res => {
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const text = await res.text();
+            try {
+                return JSON.parse(text);
+            } catch (e) {
+                console.error("JSON error. Server said:", text);
+                throw e;
+            }
+        })
         .then(data => {
             targSelect.disabled = false;
             targSelect.classList.remove('bg-gray-100', 'text-gray-500', 'border-gray-200');
@@ -157,7 +183,8 @@ function fetchTargetSlots() {
             }
         })
         .catch(err => {
-            targSelect.innerHTML = '<option value="">Error finding swap targets.</option>';
+            console.error(err);
+            targSelect.innerHTML = `<option value="">Error: ${err.message}</option>`;
         });
 }
 </script>

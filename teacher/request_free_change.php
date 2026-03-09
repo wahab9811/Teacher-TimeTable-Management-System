@@ -11,13 +11,14 @@ $teacherId = $_SESSION['user_id'];
 $message = $error = '';
 
 // Fetch teacher's timetable
+$currentDay = date('l');
 $stmt = $pdo->prepare("SELECT t.*, ts.PeriodNumber, ts.StartTime, c.Name as CourseName, r.Name as RoomName 
                        FROM timetable t 
                        JOIN time_slots ts ON t.SlotID = ts.SlotID
                        LEFT JOIN courses c ON t.CourseID = c.CourseID
                        LEFT JOIN rooms r ON t.RoomID = r.RoomID
-                       WHERE t.TeacherID = ? AND t.IsFree = 0 AND t.Status = 'published' ORDER BY t.ShiftID, FIELD(t.Day, 'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'), ts.PeriodNumber");
-$stmt->execute([$teacherId]);
+                       WHERE t.TeacherID = ? AND t.IsFree = 0 AND t.Day = ? AND t.Status = 'published' ORDER BY t.ShiftID, ts.PeriodNumber");
+$stmt->execute([$teacherId, $currentDay]);
 $teachingSlots = $stmt->fetchAll();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -52,6 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'CourseID' => $cData['CourseID'],
                 'TeacherID' => $teacherId,
                 'RoomID' => $cData['RoomID'],
+                'SkipRuleFour' => true,
                 'IsFree' => 0
             ];
             
@@ -123,10 +125,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 function loadFreeSlots() {
     const currSelect = document.getElementById('current_tt_id');
     const targSelect = document.getElementById('target_tt_id');
-    const selectedOpt = currSelect.options[currSelect.selectedIndex];
-    const secId = selectedOpt.getAttribute('data-sec');
+    const ttId = currSelect.value;
     
-    if (!secId) {
+    if (!ttId) {
         targSelect.disabled = true;
         targSelect.classList.add('bg-gray-100', 'text-gray-500', 'border-gray-200');
         targSelect.classList.remove('bg-white', 'text-gray-800', 'border-gray-300');
@@ -136,8 +137,19 @@ function loadFreeSlots() {
     
     targSelect.innerHTML = '<option value="">Loading free slots for this class...</option>';
     
-    fetch(`/api/public.php?action=get_free_slots_for_section&sec_id=${secId}`)
-    .then(r => r.json())
+    fetch(`../api/public.php?action=get_free_slots_for_section&tt_id=${ttId}&v=` + Date.now())
+    .then(async r => {
+        if (!r.ok) {
+            throw new Error(`HTTP ${r.status}`);
+        }
+        const text = await r.text();
+        try {
+            return JSON.parse(text);
+        } catch (e) {
+            console.error("JSON Parse Error. Server returned:", text);
+            throw e;
+        }
+    })
     .then(data => {
         targSelect.disabled = false;
         targSelect.classList.remove('bg-gray-100', 'text-gray-500', 'border-gray-200');
@@ -158,7 +170,8 @@ function loadFreeSlots() {
         }
     })
     .catch(err => {
-        targSelect.innerHTML = '<option value="">Error loading slots. Try again.</option>';
+        console.error("Fetch error:", err);
+        targSelect.innerHTML = `<option value="">Error: ${err.message}</option>`;
     });
 }
 </script>

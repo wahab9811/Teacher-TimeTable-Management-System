@@ -36,14 +36,38 @@ if ($action == 'get_sections') {
 }
 
 if ($action == 'get_free_slots_for_section') {
-    $secId = isset($_GET['sec_id']) ? intval($_GET['sec_id']) : 0;
-    if ($secId) {
-        $stmt = $pdo->prepare("SELECT t.*, ts.PeriodNumber, 
-                               IF(t.Day='Friday' AND ts.FridayStartTime IS NOT NULL, ts.FridayStartTime, ts.StartTime) as StartTime,
-                               IF(t.Day='Friday' AND ts.FridayEndTime IS NOT NULL, ts.FridayEndTime, ts.EndTime) as EndTime
-                               FROM timetable t JOIN time_slots ts ON t.SlotID=ts.SlotID JOIN academic_sessions sess ON t.SessionID=sess.SessionID WHERE t.SectionID=? AND t.IsFree=1 AND sess.IsActive=1 AND t.Status='published' ORDER BY FIELD(t.Day, 'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'), ts.PeriodNumber");
-        $stmt->execute([$secId]);
-        echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
+    $ttId = isset($_GET['tt_id']) ? intval($_GET['tt_id']) : 0;
+    if ($ttId) {
+        // Find the class details of the current teaching slot
+        $stmtCurr = $pdo->prepare("SELECT ProgramID, DepartmentID, SemesterID, ShiftID, SectionID FROM timetable WHERE TimetableID = ?");
+        $stmtCurr->execute([$ttId]);
+        $cData = $stmtCurr->fetch();
+        
+        if ($cData) {
+            $currentDay = date('l');
+            $query = "SELECT t.*, ts.PeriodNumber, 
+                      IF(t.Day='Friday' AND ts.FridayStartTime IS NOT NULL, ts.FridayStartTime, ts.StartTime) as StartTime,
+                      IF(t.Day='Friday' AND ts.FridayEndTime IS NOT NULL, ts.FridayEndTime, ts.EndTime) as EndTime
+                      FROM timetable t JOIN time_slots ts ON t.SlotID=ts.SlotID JOIN academic_sessions sess ON t.SessionID=sess.SessionID 
+                      WHERE t.ProgramID=? AND t.DepartmentID=? AND t.SemesterID=? AND t.ShiftID=? AND t.IsFree=1 AND t.Day=? AND sess.IsActive=1 AND t.Status='published' ";
+            
+            $params = [$cData['ProgramID'], $cData['DepartmentID'], $cData['SemesterID'], $cData['ShiftID'], $currentDay];
+            
+            if ($cData['SectionID']) {
+                $query .= " AND t.SectionID=? ";
+                $params[] = $cData['SectionID'];
+            } else {
+                $query .= " AND t.SectionID IS NULL ";
+            }
+            
+            $query .= " ORDER BY ts.PeriodNumber";
+            
+            $stmt = $pdo->prepare($query);
+            $stmt->execute($params);
+            echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
+        } else {
+            echo json_encode([]);
+        }
     } else {
         echo json_encode([]);
     }
@@ -51,26 +75,46 @@ if ($action == 'get_free_slots_for_section') {
 }
 
 if ($action == 'get_swap_targets_for_section') {
-    $secId = isset($_GET['sec_id']) ? intval($_GET['sec_id']) : 0;
     $ttId = isset($_GET['tt_id']) ? intval($_GET['tt_id']) : 0;
     
-    if ($secId && $ttId) {
-        $stmtTT = $pdo->prepare("SELECT TeacherID FROM timetable WHERE TimetableID=? AND Status='published'");
+    if ($ttId) {
+        $stmtTT = $pdo->prepare("SELECT TeacherID, CourseID, SlotID, Day FROM timetable WHERE TimetableID=? AND Status='published'");
         $stmtTT->execute([$ttId]);
-        $teacherId = $stmtTT->fetchColumn();
+        $cData = $stmtTT->fetch();
         
-        $stmt = $pdo->prepare("SELECT t.*, ts.PeriodNumber, c.Name as CourseName, u.Name as TeacherName,
-                               IF(t.Day='Friday' AND ts.FridayStartTime IS NOT NULL, ts.FridayStartTime, ts.StartTime) as StartTime,
-                               IF(t.Day='Friday' AND ts.FridayEndTime IS NOT NULL, ts.FridayEndTime, ts.EndTime) as EndTime
-                               FROM timetable t 
-                               JOIN time_slots ts ON t.SlotID=ts.SlotID 
-                               JOIN courses c ON t.CourseID=c.CourseID
-                               JOIN users u ON t.TeacherID=u.UserID
-                               JOIN academic_sessions sess ON t.SessionID=sess.SessionID 
-                               WHERE t.SectionID=? AND t.TeacherID != ? AND t.IsFree=0 AND sess.IsActive=1 AND t.Status='published' 
-                               ORDER BY FIELD(t.Day, 'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'), ts.PeriodNumber");
-        $stmt->execute([$secId, $teacherId]);
-        echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
+        if ($cData && $cData['CourseID']) {
+            $teacherId = $cData['TeacherID'];
+            $cSlotId = $cData['SlotID'];
+            
+            // Get Current Teacher's Department
+            $tDeptQ = $pdo->prepare("SELECT DepartmentID FROM users WHERE UserID=?");
+            $tDeptQ->execute([$teacherId]);
+            $tDept = $tDeptQ->fetchColumn();
+
+            $currentDay = date('l');
+            // Select targets ensuring the target teacher is not already booked at $cSlotId
+            $query = "SELECT t.*, ts.PeriodNumber, c.Name as CourseName, u.Name as TeacherName,
+                      IF(t.Day='Friday' AND ts.FridayStartTime IS NOT NULL, ts.FridayStartTime, ts.StartTime) as StartTime,
+                      IF(t.Day='Friday' AND ts.FridayEndTime IS NOT NULL, ts.FridayEndTime, ts.EndTime) as EndTime
+                      FROM timetable t 
+                      JOIN time_slots ts ON t.SlotID=ts.SlotID 
+                      JOIN courses c ON t.CourseID=c.CourseID
+                      JOIN users u ON t.TeacherID=u.UserID
+                      JOIN academic_sessions sess ON t.SessionID=sess.SessionID 
+                      WHERE u.DepartmentID=? AND t.TeacherID != ? AND t.Day=? AND t.IsFree=0 AND sess.IsActive=1 AND t.Status='published' 
+                      AND t.TeacherID NOT IN (
+                          SELECT TeacherID FROM timetable t2 WHERE t2.Day=? AND t2.SlotID=? AND t2.IsFree=0 AND t2.SessionID <=> sess.SessionID
+                      )
+                      ORDER BY ts.PeriodNumber";
+            
+            $params = [$tDept, $teacherId, $currentDay, $currentDay, $cSlotId];
+            
+            $stmt = $pdo->prepare($query);
+            $stmt->execute($params);
+            echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
+        } else {
+            echo json_encode([]);
+        }
     } else {
         echo json_encode([]);
     }

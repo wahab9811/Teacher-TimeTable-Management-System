@@ -141,6 +141,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $newData['TeacherID'] = $cSlot['TeacherID'];
                         $newData['CourseID'] = $cSlot['CourseID'];
                         $newData['RoomID'] = $cSlot['RoomID'];
+                        $newData['SkipRuleFour'] = true;
                         $newData['IsFree'] = 0;
                         
                         $val = validateTimetableSlot($pdo, $newData, $req['SwapTimetableID']);
