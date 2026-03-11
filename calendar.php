@@ -171,7 +171,9 @@ $calendarJson = json_encode($calendarData);
             <div class="bg-white border border-gray-200 rounded shadow-md p-6">
                 <div class="flex justify-between items-center mb-6">
                     <h3 class="text-base font-bold text-gray-900">Upcoming Events</h3>
+                    <?php if(!empty($upcomingEvents)): ?>
                     <a href="#" class="text-[13px] font-bold text-red-600 hover:text-red-800">View All</a>
+                    <?php endif; ?>
                 </div>
                 <div class="space-y-4">
                     <?php 
