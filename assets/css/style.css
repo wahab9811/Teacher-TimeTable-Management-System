@@ -1,0 +1,61 @@
+:root {
+  --primary-color: #8B0000;
+  --secondary-color: #FFFFFF;
+  --light-primary: rgba(139, 0, 0, 0.05);
+}
+
+body {
+  background-color: var(--secondary-color);
+  color: #333333;
+}
+
+.text-maroon {
+  color: var(--primary-color) !important;
+}
+
+.bg-maroon {
+  background-color: var(--primary-color) !important;
+  color: var(--secondary-color) !important;
+}
+
+.btn-maroon {
+  background-color: var(--primary-color) !important;
+  color: var(--secondary-color) !important;
+  border-color: var(--primary-color) !important;
+}
+.btn-maroon:hover {
+  background-color: #660000 !important;
+  color: white !important;
+}
+
+.table-row-alt:nth-child(even) {
+  background-color: var(--light-primary);
+}
+
+.free-period-row {
+  background-color: #f3f4f6 !important;
+  color: #6b7280;
+  font-style: italic;
+}
+
+.badge-normal, .badge-approved {
+  background-color: #10B981; /* Green */
+  color: white;
+}
+.badge-near-limit, .badge-pending {
+  background-color: #F59E0B; /* Amber */
+  color: white;
+}
+.badge-over-limit, .badge-rejected {
+  background-color: #EF4444; /* Red */
+  color: white;
+}
+.badge-cancelled {
+  background-color: #6B7280; /* Grey */
+  color: white;
+}
+
+.college-logo-small {
+  height: 40px;
+  width: auto;
+}
