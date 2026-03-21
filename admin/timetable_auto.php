@@ -168,66 +168,114 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_timetable'])
                 $ch = $lab['CreditHours'];
                 $assigned = false;
                 
-                // Horizontal Packing (Period-first) for Labs
-                for ($startIdx = 0; $startIdx <= count($periods) - $ch; $startIdx++) {
-                    foreach($days as $day) {
-                        $consecutiveFound = true;
-                        for($k=0; $k<$ch; $k++) {
-                            if ($generated[$day][$periods[$startIdx + $k]] !== null) {
-                                $consecutiveFound = false; break;
+                // Vertical Packing (Striping one period across consecutive days) for Labs
+                $blocksToTry = [];
+                if ($ch == 4) {
+                    $blocksToTry = [['Monday','Tuesday','Wednesday','Thursday'], ['Wednesday','Thursday','Friday','Saturday']]; // [1-4], [3-6]
+                } elseif ($ch == 3) {
+                    $blocksToTry = [['Monday','Tuesday','Wednesday'], ['Thursday','Friday','Saturday']]; // [1-3], [4-6]
+                } else {
+                    // Fallback for 1 or 2 CH labs
+                    $blocksToTry = [['Monday','Tuesday'], ['Friday','Saturday'], ['Wednesday','Thursday']]; 
+                }
+
+                foreach($periods as $per) {
+                    foreach($blocksToTry as $block) {
+                        // Truncate block to exactly CH size in case fallback is smaller than CH
+                        $blockDays = array_slice($block, 0, $ch);
+                        if (count($blockDays) < $ch) continue;
+                        
+                        $blockValid = true;
+                        foreach($blockDays as $bDay) {
+                            if ($generated[$bDay][$per] !== null) {
+                                $blockValid = false; break;
+                            }
+                            // Constraint Check
+                            $testData = [
+                                'ProgramID' => $pID, 'DepartmentID' => $dID, 'SemesterID' => $sID,
+                                'ShiftID' => $shID, 'SessionID' => $sessID, 'SectionID' => $secID,
+                                'Day' => $bDay, 'SlotID' => $slotMap[$per], 'CourseID' => $lab['CourseID'],
+                                'TeacherID' => $lab['TeacherID'], 'RoomID' => null, 'IsFree' => 0
+                            ];
+                            if (validateTimetableSlot($pdo, $testData) !== true) {
+                                $blockValid = false; break;
                             }
                         }
                         
-                        if ($consecutiveFound) {
-                            // Verify constraints for each slot in the block
-                            $allValid = true;
-                            for($k=0; $k<$ch; $k++) {
-                                $per = $periods[$startIdx + $k];
+                        if ($blockValid) {
+                            // Find ONE room for all these days
+                            // $slotMap[$per] is only 1 slot ID, but we check across multiple days
+                            $dayMarks = implode(',', array_fill(0, count($blockDays), '?'));
+                            $qRoom = $pdo->prepare("SELECT RoomID FROM rooms WHERE Type = ? AND IsActive = 1 
+                                AND (AssignFor = ? OR AssignFor = ? OR AssignFor IS NULL OR AssignFor = '') 
+                                AND RoomID NOT IN (
+                                    SELECT RoomID FROM timetable WHERE Day IN ($dayMarks) AND SlotID = ? AND RoomID IS NOT NULL
+                                ) 
+                                ORDER BY CASE WHEN AssignFor = ? THEN 1 WHEN AssignFor = ? THEN 2 ELSE 3 END ASC
+                                LIMIT 1");
+                            $qParams = array_merge([$lab['RoomType'], $assignTargetFull, $assignTargetProg], $blockDays, [$slotMap[$per], $assignTargetFull, $assignTargetProg]);
+                            $qRoom->execute($qParams);
+                            $selectedRoom = $qRoom->fetchColumn() ?: null;
+                            
+                            // Because Lab rooms are often shared, if we can't find a room for the WHOLE block, we skip this block
+                            if (!$selectedRoom) {
+                                $blockValid = false;
+                                continue;
+                            }
+
+                            // Assign
+                            foreach($blockDays as $bDay) {
+                                $generated[$bDay][$per] = cloneData($lab);
+                                $stmtTemp = $pdo->prepare("INSERT INTO timetable (ProgramID, DepartmentID, SemesterID, ShiftID, SessionID, SectionID, Day, SlotID, CourseID, TeacherID, RoomID, IsFree) VALUES (?,?,?,?,?,?,?,?,?,?,?,0)");
+                                $stmtTemp->execute([$pID, $dID, $sID, $shID, $sessID, $secID, $bDay, $slotMap[$per], $lab['CourseID'], $lab['TeacherID'], $selectedRoom]);
+                                $generated[$bDay][$per]['TimetableID'] = $pdo->lastInsertId();
+                            }
+                            $assigned = true;
+                            break 2;
+                        }
+                    }
+                }
+                
+                // Fallback: If strict blocks fail, try assigning sequential days in ANY period
+                if (!$assigned) {
+                    foreach($periods as $per) {
+                        $validDaysForPer = [];
+                        foreach($days as $day) {
+                            if($generated[$day][$per] === null) {
                                 $testData = [
                                     'ProgramID' => $pID, 'DepartmentID' => $dID, 'SemesterID' => $sID,
                                     'ShiftID' => $shID, 'SessionID' => $sessID, 'SectionID' => $secID,
                                     'Day' => $day, 'SlotID' => $slotMap[$per], 'CourseID' => $lab['CourseID'],
                                     'TeacherID' => $lab['TeacherID'], 'RoomID' => null, 'IsFree' => 0
                                 ];
-                                if (validateTimetableSlot($pdo, $testData) !== true) {
-                                    $allValid = false; break;
+                                if(validateTimetableSlot($pdo, $testData) === true) {
+                                    $validDaysForPer[] = $day;
                                 }
                             }
+                        }
+                        
+                        if (count($validDaysForPer) >= $ch) {
+                            $blockDays = array_slice($validDaysForPer, 0, $ch);
+                            $dayMarks = implode(',', array_fill(0, count($blockDays), '?'));
+                            $qRoom = $pdo->prepare("SELECT RoomID FROM rooms WHERE Type = ? AND IsActive = 1 AND RoomID NOT IN (SELECT RoomID FROM timetable WHERE Day IN ($dayMarks) AND SlotID = ? AND RoomID IS NOT NULL) LIMIT 1");
+                            $qParams = array_merge([$lab['RoomType']], $blockDays, [$slotMap[$per]]);
+                            $qRoom->execute($qParams);
+                            $selectedRoom = $qRoom->fetchColumn() ?: null;
                             
-                            if ($allValid) {
-                                // Find available room for the entire lab block
-                                $slotsToCheck = [];
-                                for($k=0; $k<$ch; $k++) {
-                                    $slotsToCheck[] = $slotMap[$periods[$startIdx + $k]];
-                                }
-                                $slotMarks = implode(',', array_fill(0, count($slotsToCheck), '?'));
-                                $qRoom = $pdo->prepare("SELECT RoomID FROM rooms WHERE Type = ? AND IsActive = 1 
-                                    AND (AssignFor = ? OR AssignFor = ? OR AssignFor IS NULL OR AssignFor = '') 
-                                    AND RoomID NOT IN (
-                                        SELECT RoomID FROM timetable WHERE Day = ? AND SlotID IN ($slotMarks) AND RoomID IS NOT NULL
-                                    ) 
-                                    ORDER BY CASE WHEN AssignFor = ? THEN 1 WHEN AssignFor = ? THEN 2 ELSE 3 END ASC
-                                    LIMIT 1");
-                                $qParams = array_merge([$lab['RoomType'], $assignTargetFull, $assignTargetProg, $day], $slotsToCheck, [$assignTargetFull, $assignTargetProg]);
-                                $qRoom->execute($qParams);
-                                $selectedRoom = $qRoom->fetchColumn() ?: null;
-
-                                // Assign
-                                for($k=0; $k<$ch; $k++) {
-                                    $per = $periods[$startIdx + $k];
-                                    $generated[$day][$per] = cloneData($lab);
-                                    
-                                    $stmtTemp = $pdo->prepare("INSERT INTO timetable (ProgramID, DepartmentID, SemesterID, ShiftID, SessionID, SectionID, Day, SlotID, CourseID, TeacherID, RoomID, IsFree) VALUES (?,?,?,?,?,?,?,?,?,?,?,0)");
-                                    $stmtTemp->execute([$pID, $dID, $sID, $shID, $sessID, $secID, $day, $slotMap[$per], $lab['CourseID'], $lab['TeacherID'], $selectedRoom]);
-                                    $tid = $pdo->lastInsertId();
-                                    $generated[$day][$per]['TimetableID'] = $tid;
+                            if ($selectedRoom) {
+                                foreach($blockDays as $bDay) {
+                                   $generated[$bDay][$per] = cloneData($lab);
+                                   $stmtTemp = $pdo->prepare("INSERT INTO timetable (ProgramID, DepartmentID, SemesterID, ShiftID, SessionID, SectionID, Day, SlotID, CourseID, TeacherID, RoomID, IsFree) VALUES (?,?,?,?,?,?,?,?,?,?,?,0)");
+                                   $stmtTemp->execute([$pID, $dID, $sID, $shID, $sessID, $secID, $bDay, $slotMap[$per], $lab['CourseID'], $lab['TeacherID'], $selectedRoom]);
+                                   $generated[$bDay][$per]['TimetableID'] = $pdo->lastInsertId();
                                 }
                                 $assigned = true;
-                                break 2;
+                                break;
                             }
                         }
                     }
                 }
+
                 if(!$assigned) $unassigned[] = $lab['Name'] . ' (Lab block)';
             }
             
@@ -249,35 +297,86 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_timetable'])
                 $bestPeriod = null;
                 $bestDays = [];
                 
-                foreach($periods as $per) {
-                    $validDaysForPer = [];
-                    foreach($days as $day) {
-                        if($generated[$day][$per] === null) {
-                            $testData = [
-                                'ProgramID' => $pID, 'DepartmentID' => $dID, 'SemesterID' => $sID,
-                                'ShiftID' => $shID, 'SessionID' => $sessID, 'SectionID' => $secID,
-                                'Day' => $day, 'SlotID' => $slotMap[$per], 'CourseID' => $lec['CourseID'],
-                                'TeacherID' => $lec['TeacherID'], 'RoomID' => $homeRoomID, 'IsFree' => 0
-                            ];
-                            
-                            // Prevent double booking on same day
-                            $courseAlreadyOnDay = false;
-                            foreach($periods as $verifyPer) {
-                                if(isset($generated[$day][$verifyPer]) && $generated[$day][$verifyPer] !== null && $generated[$day][$verifyPer]['CourseID'] == $lec['CourseID']) {
-                                    $courseAlreadyOnDay = true; break;
+                // Try Predefined Smart Blocks based on Credit Hours for human-like patterns
+                $blocksToTry = [];
+                if ($ch == 3) {
+                    $blocksToTry = [['Monday','Tuesday','Wednesday'], ['Thursday','Friday','Saturday']];
+                } elseif ($ch == 2) {
+                    $blocksToTry = [['Friday','Saturday'], ['Monday','Tuesday'], ['Wednesday','Thursday']];
+                } elseif ($ch == 4) {
+                    $blocksToTry = [['Monday','Tuesday','Wednesday','Thursday'], ['Tuesday','Wednesday','Thursday','Friday']];
+                }
+                
+                if (!empty($blocksToTry)) {
+                    foreach($periods as $per) {
+                        foreach($blocksToTry as $block) {
+                            $blockValid = true;
+                            foreach($block as $bDay) {
+                                if ($generated[$bDay][$per] !== null) {
+                                    $blockValid = false; break;
+                                }
+                                
+                                // Prevent double booking on same day
+                                $courseAlreadyOnDay = false;
+                                foreach($periods as $verifyPer) {
+                                    if(isset($generated[$bDay][$verifyPer]) && $generated[$bDay][$verifyPer] !== null && $generated[$bDay][$verifyPer]['CourseID'] == $lec['CourseID']) {
+                                        $courseAlreadyOnDay = true; break;
+                                    }
+                                }
+                                if ($courseAlreadyOnDay) { $blockValid = false; break; }
+                                
+                                $testData = [
+                                    'ProgramID' => $pID, 'DepartmentID' => $dID, 'SemesterID' => $sID,
+                                    'ShiftID' => $shID, 'SessionID' => $sessID, 'SectionID' => $secID,
+                                    'Day' => $bDay, 'SlotID' => $slotMap[$per], 'CourseID' => $lec['CourseID'],
+                                    'TeacherID' => $lec['TeacherID'], 'RoomID' => $homeRoomID, 'IsFree' => 0
+                                ];
+                                if(validateTimetableSlot($pdo, $testData) !== true) {
+                                    $blockValid = false; break;
                                 }
                             }
                             
-                            if(!$courseAlreadyOnDay && validateTimetableSlot($pdo, $testData) === true) {
-                                $validDaysForPer[] = $day;
+                            if ($blockValid) {
+                                $bestPeriod = $per;
+                                $bestDays = $block;
+                                break 2;
                             }
                         }
                     }
-                    
-                    if (count($validDaysForPer) >= $ch) {
-                        $bestPeriod = $per;
-                        $bestDays = array_slice($validDaysForPer, 0, $ch);
-                        break;
+                }
+                
+                // Fallback: If predefined blocks clash, just find ANY sequential days in a single period
+                if ($bestPeriod === null) {
+                    foreach($periods as $per) {
+                        $validDaysForPer = [];
+                        foreach($days as $day) {
+                            if($generated[$day][$per] === null) {
+                                $testData = [
+                                    'ProgramID' => $pID, 'DepartmentID' => $dID, 'SemesterID' => $sID,
+                                    'ShiftID' => $shID, 'SessionID' => $sessID, 'SectionID' => $secID,
+                                    'Day' => $day, 'SlotID' => $slotMap[$per], 'CourseID' => $lec['CourseID'],
+                                    'TeacherID' => $lec['TeacherID'], 'RoomID' => $homeRoomID, 'IsFree' => 0
+                                ];
+                                
+                                // Prevent double booking on same day
+                                $courseAlreadyOnDay = false;
+                                foreach($periods as $verifyPer) {
+                                    if(isset($generated[$day][$verifyPer]) && $generated[$day][$verifyPer] !== null && $generated[$day][$verifyPer]['CourseID'] == $lec['CourseID']) {
+                                        $courseAlreadyOnDay = true; break;
+                                    }
+                                }
+                                
+                                if(!$courseAlreadyOnDay && validateTimetableSlot($pdo, $testData) === true) {
+                                    $validDaysForPer[] = $day;
+                                }
+                            }
+                        }
+                        
+                        if (count($validDaysForPer) >= $ch) {
+                            $bestPeriod = $per;
+                            $bestDays = array_slice($validDaysForPer, 0, $ch);
+                            break;
+                        }
                     }
                 }
                 

@@ -5,6 +5,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     exit;
 }
 require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/../api/timetable_rules.php';
 
 $messages = [];
 $errors = [];
@@ -38,6 +39,16 @@ if (isset($_GET['action']) && $_GET['action'] == 'download_template') {
         fputcsv($output, ['IT Lab', 'Computer Lab', 'BS-4YDP', 'Computer Science']);
         fclose($output);
         exit;
+    } elseif ($type === 'timetable') {
+        header('Content-Disposition: attachment; filename=timetable_grid_template.csv');
+        $output = fopen('php://output', 'w');
+        fputcsv($output, ['Class_Identifier', 'Period_1', 'Period_2', 'Period_3', 'Period_4', 'Period_5', 'Period_6', 'Period_7']);
+        fputcsv($output, ['BS-4YDP | Computer Science | Semester 1 | Morning | Fall 2026 | None', 'Hafiza Tahira Sarfraz | GE-163 | R58 [1-3]
+M. Arshad | GE-168 | R58 [4-6]', 'Gulfam Nasir | GE-169 | R58 [1-3]
+Gulfam Nasir | GE-169 | R58 [4-6]', 'CTI-6 Comp. | ICT GE-160 | R58 [1-3]
+M. Iqbal | GE-190 | R58 [5-6]', '', '', '', '']);
+        fclose($output);
+        exit;
     }
 }
 
@@ -63,9 +74,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv_file'])) {
                 $rowNum = 2; // Starting from 2 because 1 is header
                 
                 // Fetch necessary lookups
-                $deps = $pdo->query("SELECT DepartmentID, Name FROM departments")->fetchAll(PDO::FETCH_KEY_PAIR);
-                $lowerDeps = array_change_key_case(array_flip($deps), CASE_LOWER);
-
+                $deps = $pdo->query("SELECT DepartmentID, Name, ProgramID FROM departments")->fetchAll(PDO::FETCH_ASSOC);
+                
                 $progs = $pdo->query("SELECT ProgramID, Name FROM programs")->fetchAll(PDO::FETCH_KEY_PAIR);
                 $lowerProgs = array_change_key_case(array_flip($progs), CASE_LOWER);
                 
@@ -112,13 +122,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv_file'])) {
                                 $rowErrors[] = "Email already exists in system.";
                             }
                             
-                            // Resolve Department
+                            // Resolve Department (For teacher import we just pick the first matching dept name)
                             $deptId = null;
-                            if (isset($lowerDeps[strtolower($deptName)])) {
-                                $deptId = $lowerDeps[strtolower($deptName)];
-                            } else {
-                                $rowErrors[] = "Department '$deptName' not found.";
+                            foreach($deps as $d) {
+                                if (strtolower($d['Name']) === strtolower($deptName)) {
+                                    $deptId = $d['DepartmentID'];
+                                    break;
+                                }
                             }
+                            if (!$deptId) $rowErrors[] = "Department '$deptName' not found.";
                             
                             $mappedData = [
                                 'Name' => $name,
@@ -155,8 +167,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv_file'])) {
                             $progId = $lowerProgs[strtolower($pName)] ?? null;
                             if (!$progId) $rowErrors[] = "Program '$pName' not found.";
                             
-                            $deptId = $lowerDeps[strtolower($dName)] ?? null;
-                            if (!$deptId) $rowErrors[] = "Department '$dName' not found.";
+                            $deptId = null;
+                            if ($progId) {
+                                foreach($deps as $d) {
+                                    if ($d['ProgramID'] == $progId && strtolower($d['Name']) === strtolower($dName)) {
+                                        $deptId = $d['DepartmentID'];
+                                        break;
+                                    }
+                                }
+                            }
+                            if (!$deptId) $rowErrors[] = "Department '$dName' not found in selected Program.";
                             
                             $shiftId = $lowerShifts[strtolower($shiftName)] ?? null;
                             if (!$shiftId) $rowErrors[] = "Shift '$shiftName' not found.";
@@ -201,6 +221,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv_file'])) {
                             if (!is_numeric($credits)) $credits = 3;
 
                             if (empty($cType)) $cType = 'Classroom';
+                            
+                            // Check for duplicates in DB
+                            $dupCheck = $pdo->prepare("SELECT CourseID FROM courses WHERE Name=? AND ProgramID=? AND DepartmentID=? AND SemesterID=? AND ShiftID=? AND SectionID <=> ?");
+                            $dupCheck->execute([$cName, $progId, $deptId, $semId, $shiftId, $secId]);
+                            if ($dupCheck->fetchColumn()) {
+                                $rowErrors[] = "Course '$cName' already exists in the database for this specific Program/Dept/Semester/Shift.";
+                            }
+                            
+                            // Check for duplicates within the current uploaded file
+                            $internalHash = implode('|', [$cName, $progId, $deptId, $semId, $shiftId, $secId]);
+                            if (!isset($globalCourseHashes)) $globalCourseHashes = [];
+                            if (in_array($internalHash, $globalCourseHashes)) {
+                                $rowErrors[] = "Course '$cName' is duplicated within this Excel file.";
+                            } else {
+                                $globalCourseHashes[] = $internalHash;
+                            }
 
                             $mappedData = [
                                 'CourseCode' => empty($code) ? null : $code,
@@ -239,6 +275,152 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv_file'])) {
                                 'Type' => $type,
                                 'AssignFor' => empty($assignFor) ? null : $assignFor
                             ];
+                        }
+                    } elseif ($importType === 'timetable') {
+                        // Expected: Class_Identifier, Period_1, ... Period_7
+                        if (count($data) < 8) {
+                            $rowErrors[] = "Missing periods columns (Expected: Class_Identifier + 7 Periods).";
+                        } else {
+                            $classStr = trim($data[0] ?? '');
+                            // Class Ident format: Program | Department | Semester | Shift | Session | Section
+                            $classPts = array_map('trim', explode('|', $classStr));
+                            if (count($classPts) < 5) {
+                                $rowErrors[] = "Invalid Class_Identifier format. Expected: Program | Dept | Semester | Shift | Session | [Section]";
+                            } else {
+                                $pName = $classPts[0]; $dName = $classPts[1]; $sName = $classPts[2]; $shName = $classPts[3]; $sessName = $classPts[4];
+                                $secName = isset($classPts[5]) && strtolower($classPts[5]) !== 'none' ? $classPts[5] : null;
+                                
+                                $progId = (isset($lowerProgs[strtolower($pName)])) ? $lowerProgs[strtolower($pName)] : null;
+                                $deptId = (isset($lowerDeps[strtolower($dName)])) ? $lowerDeps[strtolower($dName)] : null;
+                                $shiftId= (isset($lowerShifts[strtolower($shName)]))? $lowerShifts[strtolower($shName)] : null;
+                                
+                                if (!$progId) $rowErrors[] = "Program '$pName' not found.";
+                                if (!$deptId) $rowErrors[] = "Department '$dName' not found.";
+                                if (!$shiftId)$rowErrors[] = "Shift '$shName' not found.";
+                                
+                                $semId = null;
+                                if ($progId) {
+                                    foreach($sems as $s) {
+                                        if ($s['ProgramID'] == $progId && strtolower($s['Label']) == strtolower($sName)) {
+                                            $semId = $s['SemesterID']; break;
+                                        }
+                                    }
+                                }
+                                if (!$semId) $rowErrors[] = "Semester '$sName' not found.";
+                                
+                                // Resolving Session
+                                $sessId = null;
+                                $chkSess = $pdo->prepare("SELECT SessionID FROM academic_sessions WHERE LOWER(Title) = ?");
+                                $chkSess->execute([strtolower($sessName)]);
+                                $sessId = $chkSess->fetchColumn();
+                                if (!$sessId) $rowErrors[] = "Session '$sessName' not found.";
+                                
+                                $secId = null;
+                                if ($secName && $progId && $deptId && $semId && $shiftId) {
+                                    foreach($sections as $sec) {
+                                        if ($sec['ProgramID'] == $progId && $sec['DepartmentID'] == $deptId && $sec['SemesterID'] == $semId && $sec['ShiftID'] == $shiftId && strtolower($sec['Name']) == strtolower($secName)) {
+                                            $secId = $sec['SectionID']; break;
+                                        }
+                                    }
+                                    if (!$secId && $secName !== null) $rowErrors[] = "Section '$secName' not found.";
+                                }
+                                
+                                if (empty($rowErrors)) {
+                                    $allDays = ['Monday'=>1, 'Tuesday'=>2, 'Wednesday'=>3, 'Thursday'=>4, 'Friday'=>5, 'Saturday'=>6];
+                                    $dayArray = [1=>'Monday', 2=>'Tuesday', 3=>'Wednesday', 4=>'Thursday', 5=>'Friday', 6=>'Saturday'];
+                                    
+                                    // Fetch all courses to resolve Name -> CourseID
+                                    $cQuery = $pdo->prepare("SELECT CourseID, LOWER(CourseCode) as code, LOWER(Name) as name FROM courses WHERE ProgramID=? AND DepartmentID=? AND SemesterID=? AND ShiftID=?");
+                                    $cQuery->execute([$progId, $deptId, $semId, $shiftId]);
+                                    $clCourses = $cQuery->fetchAll();
+                                    
+                                    $rQuery = $pdo->prepare("SELECT RoomID, LOWER(Name) as name FROM rooms");
+                                    $rQuery->execute();
+                                    $clRooms = $rQuery->fetchAll();
+
+                                    $parsedSlots = [];
+                                    $slotMap = [];
+                                    $qsl = $pdo->prepare("SELECT PeriodNumber, SlotID FROM time_slots WHERE ShiftID=?");
+                                    $qsl->execute([$shiftId]);
+                                    while($s = $qsl->fetch()) {
+                                        $slotMap[$s['PeriodNumber']] = $s['SlotID'];
+                                    }
+                                    
+                                    // Parse the 7 periods
+                                    for ($pIndex = 1; $pIndex <= 7; $pIndex++) {
+                                        $pText = trim($data[$pIndex] ?? '');
+                                        if (!isset($slotMap[$pIndex])) continue;
+                                        
+                                        $slotId = $slotMap[$pIndex];
+                                        if (empty($pText)) {
+                                            // Empty cell = Free for all days in this period
+                                            for($d=1; $d<=6; $d++) $parsedSlots[] = ['Day'=>$dayArray[$d], 'Period'=>$pIndex, 'SlotID'=>$slotId, 'TeacherID'=>null, 'CourseID'=>null, 'RoomID'=>null, 'IsFree'=>1];
+                                        } else {
+                                            $lines = explode("\n", str_replace("\r", "", $pText));
+                                            $assignedDays = [];
+                                            
+                                            foreach($lines as $line) {
+                                                $line = trim($line);
+                                                if (empty($line)) continue;
+                                                
+                                                $daysFound = [];
+                                                if (preg_match('/\[(.*?)\]/', $line, $matches)) {
+                                                    $dayStr = $matches[1];
+                                                    if (strpos($dayStr, '-') !== false) {
+                                                        $parts = explode('-', $dayStr);
+                                                        $st = (int)trim($parts[0]); $en = (int)trim($parts[1]);
+                                                        for($d=$st; $d<=$en; $d++) if(isset($dayArray[$d])) $daysFound[] = $d;
+                                                    }
+                                                }
+                                                if(empty($daysFound)) { $daysFound = [1,2,3,4,5,6]; } // default all days
+                                                $assignedDays = array_merge($assignedDays, $daysFound);
+                                                
+                                                $lineNoDays = trim(preg_replace('/\[.*?\]/', '', $line));
+                                                $parts = array_map('trim', explode('|', $lineNoDays));
+                                                
+                                                if (count($parts) >= 3) {
+                                                    $tID = null; $cID = null; $rID = null;
+                                                    $tNameRaw = strtolower(preg_replace('/\s+/', ' ', $parts[0]));
+                                                    $cNameRaw = strtolower(preg_replace('/\s+/', ' ', $parts[1]));
+                                                    $rNameRaw = strtolower(preg_replace('/\s+/', ' ', $parts[2]));
+                                                    
+                                                    foreach($lowerTeachersByName as $dbName => $id) {
+                                                        if (strtolower(preg_replace('/\s+/', ' ', $dbName)) === $tNameRaw) { $tID = $id; break; }
+                                                    }
+                                                    foreach($clCourses as $c) {
+                                                        if (strpos($c['code'], $cNameRaw) !== false || strpos($c['name'], $cNameRaw) !== false || $c['code'] === $cNameRaw || $c['name'] === $cNameRaw) { $cID = $c['CourseID']; break; }
+                                                    }
+                                                    foreach($clRooms as $r) {
+                                                        if (strpos($r['name'], $rNameRaw) !== false || $r['name'] === $rNameRaw) { $rID = $r['RoomID']; break; }
+                                                    }
+                                                    
+                                                    if (!$tID) $rowErrors[] = "Teacher '{$parts[0]}' not found.";
+                                                    if (!$cID) $rowErrors[] = "Course '{$parts[1]}' not found.";
+                                                    if (!$rID) $rowErrors[] = "Room '{$parts[2]}' not found.";
+                                                    
+                                                    foreach($daysFound as $d) {
+                                                        $parsedSlots[] = ['Day'=>$dayArray[$d], 'Period'=>$pIndex, 'SlotID'=>$slotId, 'TeacherID'=>$tID, 'CourseID'=>$cID, 'RoomID'=>$rID, 'IsFree'=>0];
+                                                    }
+                                                } else {
+                                                    $rowErrors[] = "Invalid syntax in cell: '$line'. Expected: Teacher | Course | Room [days]";
+                                                }
+                                            }
+                                            
+                                            // Fill remaining unassigned days with Free periods
+                                            for($d=1; $d<=6; $d++) {
+                                                if(!in_array($d, $assignedDays)) {
+                                                    $parsedSlots[] = ['Day'=>$dayArray[$d], 'Period'=>$pIndex, 'SlotID'=>$slotId, 'TeacherID'=>null, 'CourseID'=>null, 'RoomID'=>null, 'IsFree'=>1];
+                                                }
+                                            }
+                                        }
+                                    }
+                                    
+                                    $mappedData = [
+                                        'ClassIdentifiers' => ['ProgramID'=>$progId, 'DepartmentID'=>$deptId, 'SemesterID'=>$semId, 'ShiftID'=>$shiftId, 'SessionID'=>$sessId, 'SectionID'=>$secId],
+                                        'Slots' => $parsedSlots
+                                    ];
+                                }
+                            }
                         }
                     }
                     
@@ -290,6 +472,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv_file'])) {
                                     $r['Name'], $r['Type'], $r['AssignFor']
                                 ]);
                                 $inserted++;
+                            }
+                        } elseif ($importType === 'timetable') {
+                            $stmtDel = $pdo->prepare("DELETE FROM timetable WHERE ProgramID=? AND DepartmentID=? AND SemesterID=? AND ShiftID=? AND SessionID=? AND SectionID <=> ?");
+                            $stmtIns = $pdo->prepare("INSERT INTO timetable (ProgramID, DepartmentID, SemesterID, ShiftID, SessionID, SectionID, Day, SlotID, CourseID, TeacherID, RoomID, IsFree) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)");
+                            
+                            foreach ($validRowsToInsert as $r) {
+                                $ids = $r['ClassIdentifiers'];
+                                // Wipe existing timetable for this class to prevent duplicates
+                                $stmtDel->execute([$ids['ProgramID'], $ids['DepartmentID'], $ids['SemesterID'], $ids['ShiftID'], $ids['SessionID'], $ids['SectionID']]);
+                                
+                                foreach($r['Slots'] as $sl) {
+                                    $stmtIns->execute([
+                                        $ids['ProgramID'], $ids['DepartmentID'], $ids['SemesterID'], $ids['ShiftID'], $ids['SessionID'], $ids['SectionID'],
+                                        $sl['Day'], $sl['SlotID'], $sl['CourseID'], $sl['TeacherID'], $sl['RoomID'], $sl['IsFree']
+                                    ]);
+                                    $inserted++;
+                                }
                             }
                         }
                         $pdo->commit();
@@ -441,6 +640,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv_file'])) {
                             <input type="file" name="csv_file" accept=".csv" required class="w-full border p-2 rounded bg-gray-50">
                         </div>
                         <button type="submit" class="w-full bg-[#a60b26] text-white px-4 py-2.5 rounded-lg font-bold hover:bg-[#8a0a20] transition shadow-sm">Preview Import</button>
+                    </form>
+                </div>
+                
+                <!-- Timetable Grid Import Card -->
+                <div class="bg-white p-6 shadow-sm rounded-xl border border-[#a60b26]/30 bg-red-50/10">
+                    <h3 class="text-xl font-bold text-maroon mb-2"><i class="fas fa-magic mr-2"></i>Import Timetable Grid</h3>
+                    <p class="text-sm text-gray-700 mb-6 font-medium">Smart Parser Mode: Upload your PDF-converted Excel timetable grid directly. The system understands the `[1-3]` multi-day syntax format!</p>
+                    
+                    <a href="?action=download_template&type=timetable" class="text-gray-700 hover:text-gray-900 text-sm font-bold flex items-center gap-1 mb-6 inline-block bg-white hover:bg-gray-100 px-3 py-1.5 rounded border border-gray-300 transition shadow-sm"><i class="fas fa-download"></i> Download CSV Template</a>
+                    
+                    <form method="POST" enctype="multipart/form-data" class="space-y-4">
+                        <input type="hidden" name="import_type" value="timetable">
+                        <div>
+                            <label class="block font-bold mb-2 text-gray-800">Upload CSV Grid File</label>
+                            <input type="file" name="csv_file" accept=".csv" required class="w-full border p-2 rounded bg-white shadow-inner border-gray-300">
+                        </div>
+                        <button type="submit" class="w-full bg-[#a60b26] text-white px-4 py-2.5 rounded-lg font-bold hover:bg-[#8a0a20] transition shadow-md">Analyze Timetable Grid</button>
                     </form>
                 </div>
             </div>

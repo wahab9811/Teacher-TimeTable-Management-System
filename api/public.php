@@ -149,9 +149,23 @@ if ($action == 'get_timetable') {
     $params = [$program_id, $dept_id, $sem_id, $shift_id];
     
     if (isset($_GET['sec_id']) && $_GET['sec_id'] !== '') {
-        $query .= " AND t.SectionID = ? ";
+        $query .= " AND (t.SectionID = ? OR t.SectionID IS NULL) ";
         $params[] = $_GET['sec_id'];
     }
+    
+    // Check if published timetable exists for this class regardless of day
+    $chkQ = "SELECT COUNT(*) FROM timetable t JOIN academic_sessions sess ON t.SessionID = sess.SessionID WHERE t.ProgramID = ? AND t.DepartmentID = ? AND t.SemesterID = ? AND t.ShiftID = ? AND sess.IsActive = 1";
+    $chkP = [$program_id, $dept_id, $sem_id, $shift_id];
+    if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
+        $chkQ .= " AND t.Status = 'published'";
+    }
+    if (isset($_GET['sec_id']) && $_GET['sec_id'] !== '') {
+        $chkQ .= " AND (t.SectionID = ? OR t.SectionID IS NULL)";
+        $chkP[] = $_GET['sec_id'];
+    }
+    $stmtChk = $pdo->prepare($chkQ);
+    $stmtChk->execute($chkP);
+    $hasTimetable = $stmtChk->fetchColumn() > 0;
     
     if ($view == 'day') {
         $query .= " AND t.Day = ? ";
@@ -180,15 +194,7 @@ if ($action == 'get_timetable') {
         }
     }
     
-    $emptyFlag = true;
-    if (!empty($schedule)) {
-        foreach($schedule as $s) {
-            if ($s['IsFree'] == 0) {
-                $emptyFlag = false;
-                break;
-            }
-        }
-    }
+    $emptyFlag = !$hasTimetable;
     
     echo json_encode(['success' => true, 'data' => $schedule, 'day' => $dayName, 'view' => $view, 'empty' => $emptyFlag]);
     exit;

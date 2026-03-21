@@ -7,10 +7,11 @@ $msg = '';
 
 if($_SERVER['REQUEST_METHOD'] === 'POST') {
     if(isset($_POST['add'])) {
-        $check = $pdo->prepare("SELECT COUNT(*) FROM departments WHERE LOWER(Name) = LOWER(?) AND ProgramID = ?");
+        $check = $pdo->prepare("SELECT Name FROM departments WHERE LOWER(REPLACE(Name, ' ', '')) = LOWER(REPLACE(?, ' ', '')) AND ProgramID = ? LIMIT 1");
         $check->execute([trim($_POST['name']), $_POST['program_id']]);
-        if ($check->fetchColumn() > 0) {
-            $msg = "Error: Department/Group name already exists in this program.";
+        $existingName = $check->fetchColumn();
+        if ($existingName) {
+            $msg = "Error: This department is already added as '{$existingName}'! (System Treats {$_POST['name']} = {$existingName}).";
         } else {
             $pdo->prepare("INSERT INTO departments (ProgramID, Name, ShortCode, Type) VALUES (?, ?, ?, ?)")
                 ->execute([$_POST['program_id'], trim($_POST['name']), trim($_POST['short_code']), $_POST['type']]);
@@ -35,10 +36,11 @@ if($_SERVER['REQUEST_METHOD'] === 'POST') {
             $msg = "Department deleted.";
         }
     } elseif(isset($_POST['edit'])) {
-        $check = $pdo->prepare("SELECT COUNT(*) FROM departments WHERE LOWER(Name) = LOWER(?) AND ProgramID = ? AND DepartmentID != ?");
+        $check = $pdo->prepare("SELECT Name FROM departments WHERE LOWER(REPLACE(Name, ' ', '')) = LOWER(REPLACE(?, ' ', '')) AND ProgramID = ? AND DepartmentID != ? LIMIT 1");
         $check->execute([trim($_POST['name']), $_POST['program_id'], $_POST['id']]);
-        if ($check->fetchColumn() > 0) {
-            $msg = "Error: Department/Group name already exists in this program.";
+        $existingName = $check->fetchColumn();
+        if ($existingName) {
+            $msg = "Error: This department is already added as '{$existingName}'! (System Treats {$_POST['name']} = {$existingName}).";
         } else {
             $pdo->prepare("UPDATE departments SET ProgramID = ?, Name = ?, ShortCode = ?, Type = ? WHERE DepartmentID = ?")
                 ->execute([$_POST['program_id'], trim($_POST['name']), trim($_POST['short_code']), $_POST['type'], $_POST['id']]);
