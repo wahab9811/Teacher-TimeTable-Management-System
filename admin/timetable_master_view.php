@@ -166,11 +166,7 @@ if ($sessID && $shID) {
     
     <div class="flex-1 min-w-0">
         <div class="flex justify-between items-center mb-4">
-            <h2 class="text-2xl font-bold text-maroon">Master Timetable Grid</h2>
-            <button onclick="window.print()" class="bg-gray-800 text-white font-bold px-4 py-2 rounded shadow flex items-center gap-2 hover:bg-black">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002 2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clip-rule="evenodd" /></svg>
-                Print Report
-            </button>
+            <h2 class="text-2xl font-bold text-maroon">Master Timetable</h2>
         </div>
         
         <div class="bg-white p-4 shadow-sm border border-gray-200 rounded-xl mb-6 hide-on-print">
@@ -188,14 +184,14 @@ if ($sessID && $shID) {
                     </select>
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-gray-500 mb-1">Program (Optional)</label>
+                    <label class="block text-xs font-bold text-gray-500 mb-1">Program</label>
                     <select name="program_id" class="w-full border border-gray-300 rounded p-2 focus:ring-1 focus:ring-[#a60b26]">
                         <option value="">All Programs</option>
                         <?php foreach($programsList as $p): echo "<option value='{$p['ProgramID']}' ".($p['ProgramID'] == $pID ? 'selected':'').">{$p['Name']}</option>"; endforeach; ?>
                     </select>
                 </div>
                 <div>
-                    <button type="submit" class="bg-[#a60b26] text-white px-5 py-2 rounded font-bold hover:bg-[#8a0a20] w-full">Generate View</button>
+                    <button type="submit" class="bg-[#a60b26] text-white px-5 py-2 rounded font-bold hover:bg-[#8a0a20] w-full">View</button>
                 </div>
             </form>
         </div>
@@ -206,7 +202,7 @@ if ($sessID && $shID) {
             <div id="printableArea" class="bg-white p-6 shadow-sm border border-gray-200 rounded-xl overflow-x-auto">
                 <div class="print-header hidden md:block text-center mb-4">
                     <h1 class="text-xl font-black uppercase text-gray-800">Govt. Graduate College, Civil Lines</h1>
-                    <h2 class="text-md font-bold text-gray-600">Master Timetable Grid</h2>
+                    <h2 class="text-md font-bold text-gray-600">Master Timetable</h2>
                 </div>
                 <table class="w-full border-collapse border border-gray-300 print-table text-sm">
                     <thead>

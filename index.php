@@ -207,10 +207,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_report'])) {
         </div>
     </div>
 
-    <div id="pdf_btn_wrapper" class="mt-4 flex justify-end">
-        <button class="bg-gray-800 text-white px-4 py-2 rounded hover:bg-gray-700 download-pdf-btn"
-            onclick="downloadTimetablePDF()">Download PDF</button>
-    </div>
+
 </div>
 
 <script>
@@ -344,7 +341,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_report'])) {
                     msgDiv.classList.remove('hidden');
                     msgDiv.className = `${colorClasses} px-4 py-3 rounded mb-4`;
                     document.getElementById('printable_area').classList.add('hidden');
-                    document.getElementById('pdf_btn_wrapper').classList.add('hidden');
                     document.getElementById('hol_title').innerText = title;
                     document.getElementById('hol_desc').innerText = desc;
                 };
@@ -359,7 +355,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_report'])) {
                 } else {
                     document.getElementById('holiday_message').classList.add('hidden');
                     document.getElementById('printable_area').classList.remove('hidden');
-                    document.getElementById('pdf_btn_wrapper').classList.remove('hidden');
                     renderTable(data);
                 }
             });
@@ -440,10 +435,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_report'])) {
         }
     }
 
-    function downloadTimetablePDF() {
-        let view = document.getElementById('view_type').value;
-        downloadPDF('timetable_container', 'Timetable.pdf', view === 'week');
-    }
+
 </script>
 
 <div class="modal fade" id="reportIssueModal" tabindex="-1" aria-labelledby="reportIssueModalLabel" aria-hidden="true">

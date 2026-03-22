@@ -644,19 +644,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv_file'])) {
                 </div>
                 
                 <!-- Timetable Grid Import Card -->
-                <div class="bg-white p-6 shadow-sm rounded-xl border border-[#a60b26]/30 bg-red-50/10">
-                    <h3 class="text-xl font-bold text-maroon mb-2"><i class="fas fa-magic mr-2"></i>Import Timetable Grid</h3>
-                    <p class="text-sm text-gray-700 mb-6 font-medium">Smart Parser Mode: Upload your PDF-converted Excel timetable grid directly. The system understands the `[1-3]` multi-day syntax format!</p>
+                <div class="bg-white p-6 shadow-sm rounded-xl border border-gray-200">
+                    <h3 class="text-xl font-bold text-gray-800 mb-2"><i class="fas fa-magic mr-2"></i>Import whole Timetable</h3>
+                    <p class="text-sm text-gray-600 mb-6">Create the entire college timetable at once according to the provided CSV file format.</p>
                     
                     <a href="?action=download_template&type=timetable" class="text-gray-700 hover:text-gray-900 text-sm font-bold flex items-center gap-1 mb-6 inline-block bg-white hover:bg-gray-100 px-3 py-1.5 rounded border border-gray-300 transition shadow-sm"><i class="fas fa-download"></i> Download CSV Template</a>
                     
                     <form method="POST" enctype="multipart/form-data" class="space-y-4">
                         <input type="hidden" name="import_type" value="timetable">
                         <div>
-                            <label class="block font-bold mb-2 text-gray-800">Upload CSV Grid File</label>
-                            <input type="file" name="csv_file" accept=".csv" required class="w-full border p-2 rounded bg-white shadow-inner border-gray-300">
+                            <label class="block font-bold mb-2 text-gray-800">Upload CSV File</label>
+                            <input type="file" name="csv_file" accept=".csv" required class="w-full border p-2 rounded bg-gray-50">
                         </div>
-                        <button type="submit" class="w-full bg-[#a60b26] text-white px-4 py-2.5 rounded-lg font-bold hover:bg-[#8a0a20] transition shadow-md">Analyze Timetable Grid</button>
+                        <button type="submit" class="w-full bg-[#a60b26] text-white px-4 py-2.5 rounded-lg font-bold hover:bg-[#8a0a20] transition shadow-sm">Preview Import</button>
                     </form>
                 </div>
             </div>

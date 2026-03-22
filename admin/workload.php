@@ -52,7 +52,6 @@ unset($t); // Fix: Unset reference to prevent overwriting the last element in th
     <div class="flex-1">
         <div class="flex justify-between items-center bg-white p-6 shadow-md rounded mb-4">
         <h2 class="text-2xl font-bold text-maroon">Teacher Workload Report</h2>
-        <button onclick="downloadWorkloadPDF()" class="bg-gray-800 text-white px-4 py-2 rounded">Export PDF</button>
     </div>
     
     <div class="bg-white p-6 shadow-md rounded" id="workload_container">
@@ -115,9 +114,5 @@ unset($t); // Fix: Unset reference to prevent overwriting the last element in th
         </div>
     </div>
 </div>
-<script>
-function downloadWorkloadPDF() {
-    downloadPDF('workload_container', 'Workload_Report.pdf', false);
-}
-</script>
+
 
