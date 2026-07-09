@@ -388,6 +388,9 @@ if ($tab === 'department' && isset($_GET['dept_id']) && isset($_GET['shift_id'])
                             c.innerHTML = '<p class="text-gray-500 font-bold p-4 bg-gray-50 text-center rounded border">No timetable found.</p>';
                             return;
                         }
+                        let hasDraft = res.data.some(x => x.Status === 'draft');
+                        let publishBtnHtml = hasDraft ? `<button type="submit" name="publish_timetable" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-sm font-bold shadow-sm flex items-center" onclick="return confirm('Publish all drafted periods for this class?')">Publish Drafts</button>` : '';
+                        
                         let editLink = `timetable_manual.php?pid=${p}&did=${d}&sid=${s}&shid=${sh}&secid=${sec}`;
                         let html = `
                         <div class="bg-white p-2 relative">
@@ -399,7 +402,7 @@ if ($tab === 'department' && isset($_GET['dept_id']) && isset($_GET['shift_id'])
                                 <input type="hidden" name="shift_id" value="${sh}">
                                 <input type="hidden" name="sec_id" value="${sec}">
                                 <a href="${editLink}" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm font-bold shadow-sm flex items-center">Edit</a>
-                                <button type="submit" name="publish_timetable" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-sm font-bold shadow-sm flex items-center" onclick="return confirm('Publish all drafted periods for this class?')">Publish Drafts</button>
+                                ${publishBtnHtml}
                                 <button type="submit" name="delete_timetable" class="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded text-sm font-bold shadow-sm flex items-center" onclick="return confirm('Are you sure you want to COMPLETELY delete this timetable?')">Delete</button>
                             </form>
                             <table class="w-full text-left border">
@@ -699,6 +702,14 @@ if ($tab === 'department' && isset($_GET['dept_id']) && isset($_GET['shift_id'])
                     </div>
                     <div class="mt-4 flex gap-4">
                         <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded font-bold hover:bg-blue-700">Show Timetables</button>
+                        <?php 
+                        if(isset($dept_tt) && is_array($dept_tt)) {
+                            // Filter out sections with no data early so UI buttons can update correctly
+                            $dept_tt = array_filter($dept_tt, function($item) {
+                                return !empty($item['data']);
+                            });
+                        }
+                        ?>
                         <?php if(isset($_GET['dept_id']) && isset($_GET['shift_id']) && !empty($dept_tt)): ?>
                             <button type="button" onclick="downloadPDF('dept_tt_container', 'Department_Timetable.pdf', true)" class="download-pdf-btn bg-gray-600 text-white px-6 py-2 rounded shadow font-bold hover:bg-gray-700">Export All to PDF</button>
                         <?php endif; ?>
@@ -743,10 +754,7 @@ if ($tab === 'department' && isset($_GET['dept_id']) && isset($_GET['shift_id'])
                     $selShift = !empty($selShift) ? array_shift($selShift) : null;
                     ?>
                     <?php
-                    // Filter out sections with no data
-                    $dept_tt = array_filter($dept_tt, function($item) {
-                        return !empty($item['data']);
-                    });
+                    // Data is already filtered above UI buttons
                     ?>
                     <?php if($selDept && $selShift && !empty($dept_tt)): ?>
                     <div id="dept_tt_container" class="w-full bg-white p-2">
@@ -778,7 +786,15 @@ if ($tab === 'department' && isset($_GET['dept_id']) && isset($_GET['shift_id'])
                                         <input type="hidden" name="shift_id" value="<?= $shiftId ?>">
                                         <input type="hidden" name="sec_id" value="<?= $rSecId ?>">
                                         <a href="timetable_manual.php?pid=<?= $progId ?>&did=<?= $deptId ?>&sid=<?= $rSemId ?>&shid=<?= $shiftId ?>&secid=<?= $rSecId ?>" class="bg-white text-blue-700 hover:bg-gray-50 hover:text-blue-800 px-3 py-1 rounded shadow-sm font-bold flex items-center">Edit</a>
+                                        <?php
+                                        $hasDraftBtn = false;
+                                        foreach($semData['data'] as $dd) {
+                                            if (($dd['Status'] ?? '') === 'draft') { $hasDraftBtn = true; break; }
+                                        }
+                                        if($hasDraftBtn):
+                                        ?>
                                         <button type="submit" name="publish_timetable" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded shadow-sm font-bold flex items-center border border-green-700 ml-1" onclick="return confirm('Publish all drafted periods for this class?')">Publish</button>
+                                        <?php endif; ?>
                                         <button type="submit" name="delete_timetable" class="bg-white hover:bg-red-50 text-red-700 px-3 py-1 rounded shadow-sm font-bold flex items-center border border-red-200 ml-1" onclick="return confirm('Are you sure you want to COMPLETELY delete this timetable footprint?')">Delete</button>
                                     </form>
                                 </h3>
