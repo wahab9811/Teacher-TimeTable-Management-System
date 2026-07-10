@@ -45,8 +45,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$teachers = $pdo->prepare("SELECT UserID, Name FROM users WHERE Role='teacher' AND AccountStatus='Active' AND UserID != ? ORDER BY Name ASC");
-$teachers->execute([$teacherId]);
+// Fetch teacher's home department
+$stmtDept = $pdo->prepare("SELECT DepartmentID FROM users WHERE UserID = ?");
+$stmtDept->execute([$teacherId]);
+$myDeptID = $stmtDept->fetchColumn();
+
+// Only show teachers from the SAME department
+if ($myDeptID) {
+    $teachers = $pdo->prepare("SELECT UserID, Name FROM users WHERE Role='teacher' AND AccountStatus='Active' AND DepartmentID = ? AND UserID != ? ORDER BY Name ASC");
+    $teachers->execute([$myDeptID, $teacherId]);
+} else {
+    // Fallback if no department is assigned
+    $teachers = $pdo->prepare("SELECT UserID, Name FROM users WHERE Role='teacher' AND AccountStatus='Active' AND UserID != ? ORDER BY Name ASC");
+    $teachers->execute([$teacherId]);
+}
 $teacherList = $teachers->fetchAll();
 ?>
 <?php include '../includes/header.php'; ?>

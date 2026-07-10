@@ -36,6 +36,7 @@ if($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $emp_type = empty($_POST['employment_type']) ? null : $_POST['employment_type'];
         $exp = empty($_POST['experience']) ? null : $_POST['experience'];
         $status = $_POST['account_status'] ?: 'Active';
+        $avail = isset($_POST['available_days']) ? implode(',', $_POST['available_days']) : null;
 
         $avail = isset($_POST['available_days']) ? implode(',', $_POST['available_days']) : null;
         try {

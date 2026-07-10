@@ -4,14 +4,49 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     header("Location: ../login.php");
     exit;
 }
+
 require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/../config/mail.php';
+require_once __DIR__ . '/../libs/PHPMailer/Exception.php';
+require_once __DIR__ . '/../libs/PHPMailer/PHPMailer.php';
+require_once __DIR__ . '/../libs/PHPMailer/SMTP.php';
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception;
+
 
 $message = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] === 'resolve') {
+        $stmt = $pdo->prepare("SELECT StudentEmail FROM student_reports WHERE ReportID = ?");
+        $stmt->execute([$_POST['report_id']]);
+        $reportEmail = $stmt->fetchColumn();
+
         $stmt = $pdo->prepare("UPDATE student_reports SET Status = 'resolved' WHERE ReportID = ?");
         $stmt->execute([$_POST['report_id']]);
         $message = "Report marked as resolved.";
+
+        if ($reportEmail) {
+            try {
+                $mail = new PHPMailer(true);
+                $mail->isSMTP();
+                $mail->Host       = MAIL_HOST;
+                $mail->SMTPAuth   = true;
+                $mail->Username   = MAIL_USER;
+                $mail->Password   = MAIL_PASS;
+                $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+                $mail->Port       = MAIL_PORT;
+                $mail->setFrom(MAIL_USER, MAIL_FROM_NAME);
+                $mail->addAddress($reportEmail);
+                $mail->isHTML(false);
+                $mail->Subject = 'Timetable Issue Resolved';
+                $mail->Body    = "Dear Student,\n\nYour reported timetable issue has been resolved by the administration. You can now check the updated timetable at the student portal.\n\nThank you,\nAdministration\nGCB SKP";
+                
+                $mail->send();
+                $message .= " An email notification was sent to the student.";
+            } catch (Exception $e) {
+                $message .= " (Failed to send email: {$mail->ErrorInfo})";
+            }
+        }
     } elseif ($_POST['action'] === 'delete') {
         $stmt = $pdo->prepare("DELETE FROM student_reports WHERE ReportID = ?");
         $stmt->execute([$_POST['report_id']]);
@@ -53,7 +88,7 @@ if ($statusFilter === 'all') {
                 <thead>
                     <tr class="bg-gray-50 border-b border-gray-200 text-left">
                         <th class="p-3 text-sm font-bold text-gray-700">Date/Time</th>
-                        <th class="p-3 text-sm font-bold text-gray-700">Student Name</th>
+                        <th class="p-3 text-sm font-bold text-gray-700">Student Info</th>
                         <th class="p-3 text-sm font-bold text-gray-700">Class Info</th>
                         <th class="p-3 text-sm font-bold text-gray-700">Issue Type</th>
                         <th class="p-3 text-sm font-bold text-gray-700">Message</th>
@@ -66,7 +101,12 @@ if ($statusFilter === 'all') {
                         <?php foreach($reports as $r): ?>
                             <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                                 <td class="p-3 text-sm text-gray-600"><?= date('d M Y, h:i A', strtotime($r['CreatedAt'])) ?></td>
-                                <td class="p-3 text-sm font-bold text-maroon"><?= htmlspecialchars($r['StudentName']) ?></td>
+                                <td class="p-3 text-sm font-bold text-maroon">
+                                    <?= htmlspecialchars($r['StudentName']) ?>
+                                    <?php if (!empty($r['StudentEmail'])): ?>
+                                        <div class="text-xs font-normal text-gray-500 mt-0.5"><?= htmlspecialchars($r['StudentEmail']) ?></div>
+                                    <?php endif; ?>
+                                </td>
                                 <td class="p-3 text-sm text-gray-700"><?= htmlspecialchars($r['ProgramDept']) ?></td>
                                 <td class="p-3 text-sm text-gray-700 font-semibold"><?= htmlspecialchars($r['IssueType']) ?></td>
                                 <td class="p-3 text-sm text-gray-700 max-w-md break-words whitespace-normal leading-relaxed"><?= htmlspecialchars($r['Message']) ?></td>

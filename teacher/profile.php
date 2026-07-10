@@ -198,8 +198,8 @@ $tInfo = $stmtUser->fetch();
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <!-- Personal Info -->
-            <div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-                <div class="bg-gray-50 border-b border-gray-200 px-5 py-3">
+            <div class="bg-white border border-gray-200 rounded-xl shadow-sm">
+                <div class="bg-gray-50 border-b border-gray-200 px-5 py-3 rounded-t-xl">
                     <h3 class="font-bold text-[#111827]">Personal Information</h3>
                 </div>
                 <div class="p-5">
@@ -225,10 +225,19 @@ $tInfo = $stmtUser->fetch();
             </div>
 
             <!-- Professional Info -->
-            <div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-                <div class="bg-gray-50 border-b border-gray-200 px-5 py-3 flex justify-between items-center">
+            <div class="bg-white border border-gray-200 rounded-xl shadow-sm">
+                <div class="bg-gray-50 border-b border-gray-200 px-5 py-3 flex justify-between items-center rounded-t-xl">
                     <h3 class="font-bold text-[#111827]">Professional Information</h3>
-                    <svg class="w-4 h-4 text-gray-400" title="Contact Admin to edit" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <div style="position: relative; display: inline-block; cursor: help;" 
+                         onmouseover="document.getElementById('tt-admin-edit').style.opacity='1'; document.getElementById('tt-admin-edit').style.visibility='visible';" 
+                         onmouseout="document.getElementById('tt-admin-edit').style.opacity='0'; document.getElementById('tt-admin-edit').style.visibility='hidden';">
+                        <svg class="w-[18px] h-[18px] text-gray-400 hover:text-blue-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        
+                        <div id="tt-admin-edit" style="opacity: 0; visibility: hidden; transition: opacity 0.2s ease; position: absolute; right: -4px; bottom: 28px; background: #111827; color: white; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: bold; white-space: nowrap; z-index: 9999; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);">
+                            Contact Admin to Edit
+                            <div style="position: absolute; bottom: -4px; right: 8px; width: 10px; height: 10px; background: #111827; transform: rotate(45deg);"></div>
+                        </div>
+                    </div>
                 </div>
                 <div class="p-5">
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-2 text-[15px]">
@@ -288,7 +297,7 @@ $tInfo = $stmtUser->fetch();
             
             <div class="col-span-2 sm:col-span-1">
                 <label class="block text-sm font-bold text-gray-700 mb-1.5">CNIC Number</label>
-                <input type="text" name="cnic" placeholder="e.g. 12345-1234567-1" value="<?php echo htmlspecialchars($tInfo['CNIC'] ?? ''); ?>" class="w-full border border-gray-300 p-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#a60b26]/30 focus:border-[#a60b26] transition-all">
+                <input type="text" name="cnic" placeholder="e.g. 35404-8015419-1" value="<?php echo htmlspecialchars($tInfo['CNIC'] ?? ''); ?>" class="w-full border border-gray-300 p-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#a60b26]/30 focus:border-[#a60b26] transition-all">
             </div>
 
             <div class="col-span-2 sm:col-span-1">
@@ -333,7 +342,7 @@ $tInfo = $stmtUser->fetch();
             </div>
             <div class="flex justify-end gap-3 mt-3 pt-4 border-t border-gray-100">
                 <button type="button" onclick="document.getElementById('changePasswordModal').style.display='none'" class="bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold px-5 py-2.5 rounded-lg transition-colors">Cancel</button>
-                <button type="submit" name="change_password" class="bg-[#a60b26] hover:bg-[#8a0a20] text-white font-bold px-5 py-2.5 rounded-lg transition-colors shadow-sm">Update Security</button>
+                <button type="submit" name="change_password" class="bg-[#a60b26] hover:bg-[#8a0a20] text-white font-bold px-7 py-2.5 rounded-lg transition-colors shadow-sm">Update</button>
             </div>
         </form>
     </div>

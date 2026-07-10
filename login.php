@@ -11,7 +11,7 @@ if (!isset($_SESSION['user_id']) && !empty($_COOKIE['remember'])) {
     $parts = explode(':', $_COOKIE['remember'], 2);
     if (count($parts) === 2) {
         list($selector, $validator) = $parts;
-        $stmt = $pdo->prepare("SELECT t.ValidatorHash, u.UserID, u.Name, u.Role FROM auth_tokens t JOIN users u ON u.UserID = t.UserID WHERE t.Selector = ? AND t.ExpiresAt > ?");
+        $stmt = $pdo->prepare("SELECT t.ValidatorHash, u.UserID, u.Name, u.Role FROM auth_tokens t JOIN users u ON u.UserID = t.UserID WHERE t.Selector = ? AND t.ExpiresAt > ? AND u.AccountStatus = 'Active'");
         $stmt->execute([$selector, date('Y-m-d H:i:s')]);
         $tok = $stmt->fetch();
         if ($tok && hash_equals($tok['ValidatorHash'], hash('sha256', $validator))) {

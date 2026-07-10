@@ -27,7 +27,15 @@ if (isset($_GET['action']) && $_GET['action'] == 'download_template') {
         header('Content-Disposition: attachment; filename=courses_template.csv');
         $output = fopen('php://output', 'w');
         fputcsv($output, ['Course_Code', 'Course_Name', 'Program', 'Department/Group', 'Semester/Year', 'Shift', 'Section', 'Assign_To', 'Weekly_Periods', 'Course_Type']);
-        fputcsv($output, ['CS-101', 'Intro to Programming', 'BS', 'Computer Science', 'Semester 1', 'Morning', '', 'Ali Ahmad', '3', 'Computer Lab']);
+        fputcsv($output, ['CS-101', 'Intro to Programming', 'BS-4YDP', 'Computer Science', 'Semester 1', 'Morning', '', 'Ali Ahmad', '3', 'Computer Lab']);
+        fclose($output);
+        exit;
+    } elseif ($type === 'rooms') {
+        header('Content-Disposition: attachment; filename=rooms_template.csv');
+        $output = fopen('php://output', 'w');
+        fputcsv($output, ['Room_Name', 'Room_Type', 'Assign_For_(Program)', 'Department']);
+        fputcsv($output, ['Room 101', 'Classroom', 'BS-4YDP', '']);
+        fputcsv($output, ['IT Lab', 'Computer Lab', 'BS-4YDP', 'Computer Science']);
         fclose($output);
         exit;
     }
@@ -67,8 +75,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv_file'])) {
                 
                 $sections = $pdo->query("SELECT SectionID, Name, ProgramID, DepartmentID, SemesterID, ShiftID FROM sections")->fetchAll(PDO::FETCH_ASSOC);
                 
+                $teachersByEmail = $pdo->query("SELECT Email, UserID FROM users WHERE Role='teacher'")->fetchAll(PDO::FETCH_KEY_PAIR);
+                $lowerTeachersByEmail = array_change_key_case($teachersByEmail, CASE_LOWER);
+
                 $teachersByName = $pdo->query("SELECT Name, UserID FROM users WHERE Role='teacher'")->fetchAll(PDO::FETCH_KEY_PAIR);
-                $lowerTeachers = array_change_key_case($teachersByName, CASE_LOWER);
+                $lowerTeachersByName = array_change_key_case($teachersByName, CASE_LOWER);
 
                 $validRowsToInsert = [];
                 
@@ -97,7 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv_file'])) {
                             }
                             
                             // Check existing email
-                            if (isset($lowerTeachers[strtolower($email)])) {
+                            if (isset($lowerTeachersByEmail[strtolower($email)])) {
                                 $rowErrors[] = "Email already exists in system.";
                             }
                             
@@ -176,8 +187,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv_file'])) {
                                 }
                             }
                             
-                            // Find Teacher ID
-                            $teacherId = $lowerTeachers[strtolower($tName)] ?? null;
+                            // Find Teacher ID (clean double spaces to improve matching reliability)
+                            $cleanTName = strtolower(preg_replace('/\s+/', ' ', trim($tName)));
+                            $teacherId = null;
+                            foreach($lowerTeachersByName as $dbName => $id) {
+                                if (strtolower(preg_replace('/\s+/', ' ', trim($dbName))) === $cleanTName) {
+                                    $teacherId = $id;
+                                    break;
+                                }
+                            }
                             if (!$teacherId) $rowErrors[] = "Assign_To Name '$tName' not found (ensure teacher is imported first).";
                             
                             if (!is_numeric($credits)) $credits = 3;
@@ -195,6 +213,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv_file'])) {
                                 'TeacherID' => $teacherId,
                                 'CreditHours' => $credits,
                                 'RoomType' => $cType
+                            ];
+                        }
+                    } elseif ($importType === 'rooms') {
+                        // Expected: Room_Name, Room_Type, Assign_For_(Program), Department
+                        if (count($data) < 2) {
+                            $rowErrors[] = "Missing required columns (Room Name, Room Type).";
+                        } else {
+                            $name = trim($data[0] ?? '');
+                            $type = trim($data[1] ?? '');
+                            $prog = trim($data[2] ?? '');
+                            $dept = trim($data[3] ?? '');
+                            
+                            if (empty($name) || empty($type)) {
+                                $rowErrors[] = "Room Name and Room Type are required.";
+                            }
+                            
+                            $assignFor = $prog;
+                            if (!empty($prog) && !empty($dept)) {
+                                $assignFor .= ' - ' . $dept;
+                            }
+                            
+                            $mappedData = [
+                                'Name' => $name,
+                                'Type' => $type,
+                                'AssignFor' => empty($assignFor) ? null : $assignFor
                             ];
                         }
                     }
@@ -237,6 +280,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv_file'])) {
                                 $stmtIns->execute([
                                     $r['CourseCode'], $r['Name'], $r['ProgramID'], $r['DepartmentID'], $r['SemesterID'], $r['ShiftID'], $r['SectionID'], 
                                     $r['TeacherID'], $r['CreditHours'], $r['RoomType']
+                                ]);
+                                $inserted++;
+                            }
+                        } elseif ($importType === 'rooms') {
+                            $stmtIns = $pdo->prepare("INSERT INTO rooms (Name, Type, AssignFor) VALUES (?, ?, ?)");
+                            foreach ($validRowsToInsert as $r) {
+                                $stmtIns->execute([
+                                    $r['Name'], $r['Type'], $r['AssignFor']
                                 ]);
                                 $inserted++;
                             }
@@ -368,6 +419,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv_file'])) {
                     
                     <form method="POST" enctype="multipart/form-data" class="space-y-4">
                         <input type="hidden" name="import_type" value="courses">
+                        <div>
+                            <label class="block font-bold mb-2 text-gray-800">Upload CSV File</label>
+                            <input type="file" name="csv_file" accept=".csv" required class="w-full border p-2 rounded bg-gray-50">
+                        </div>
+                        <button type="submit" class="w-full bg-[#a60b26] text-white px-4 py-2.5 rounded-lg font-bold hover:bg-[#8a0a20] transition shadow-sm">Preview Import</button>
+                    </form>
+                </div>
+                
+                <!-- Rooms Import Card -->
+                <div class="bg-white p-6 shadow-sm rounded-xl border border-gray-200">
+                    <h3 class="text-xl font-bold text-gray-800 mb-2">Import Rooms</h3>
+                    <p class="text-sm text-gray-600 mb-6">Quickly add multiple rooms and labs. Assign For and Department columns are optional.</p>
+                    
+                    <a href="?action=download_template&type=rooms" class="text-gray-700 hover:text-gray-900 text-sm font-bold flex items-center gap-1 mb-6 inline-block bg-gray-50 hover:bg-gray-100 px-3 py-1.5 rounded border border-gray-300 transition"><i class="fas fa-download"></i> Download CSV Template</a>
+                    
+                    <form method="POST" enctype="multipart/form-data" class="space-y-4">
+                        <input type="hidden" name="import_type" value="rooms">
                         <div>
                             <label class="block font-bold mb-2 text-gray-800">Upload CSV File</label>
                             <input type="file" name="csv_file" accept=".csv" required class="w-full border p-2 rounded bg-gray-50">

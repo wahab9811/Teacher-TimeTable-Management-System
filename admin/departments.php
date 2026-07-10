@@ -7,9 +7,15 @@ $msg = '';
 
 if($_SERVER['REQUEST_METHOD'] === 'POST') {
     if(isset($_POST['add'])) {
-        $pdo->prepare("INSERT INTO departments (ProgramID, Name, ShortCode, Type) VALUES (?, ?, ?, ?)")
-            ->execute([$_POST['program_id'], $_POST['name'], $_POST['short_code'], $_POST['type']]);
-        $msg = "Department/Group added successfully.";
+        $check = $pdo->prepare("SELECT COUNT(*) FROM departments WHERE LOWER(Name) = LOWER(?) AND ProgramID = ?");
+        $check->execute([trim($_POST['name']), $_POST['program_id']]);
+        if ($check->fetchColumn() > 0) {
+            $msg = "Error: Department/Group name already exists in this program.";
+        } else {
+            $pdo->prepare("INSERT INTO departments (ProgramID, Name, ShortCode, Type) VALUES (?, ?, ?, ?)")
+                ->execute([$_POST['program_id'], trim($_POST['name']), trim($_POST['short_code']), $_POST['type']]);
+            $msg = "Department/Group added successfully.";
+        }
     } elseif(isset($_POST['toggle_status'])) {
         $pdo->prepare("UPDATE departments SET IsActive = NOT IsActive WHERE DepartmentID = ?")->execute([$_POST['id']]);
         $stmt = $pdo->prepare("SELECT IsActive FROM departments WHERE DepartmentID = ?");
@@ -29,9 +35,15 @@ if($_SERVER['REQUEST_METHOD'] === 'POST') {
             $msg = "Department deleted.";
         }
     } elseif(isset($_POST['edit'])) {
-        $pdo->prepare("UPDATE departments SET ProgramID = ?, Name = ?, ShortCode = ?, Type = ? WHERE DepartmentID = ?")
-            ->execute([$_POST['program_id'], $_POST['name'], $_POST['short_code'], $_POST['type'], $_POST['id']]);
-        $msg = "Department updated.";
+        $check = $pdo->prepare("SELECT COUNT(*) FROM departments WHERE LOWER(Name) = LOWER(?) AND ProgramID = ? AND DepartmentID != ?");
+        $check->execute([trim($_POST['name']), $_POST['program_id'], $_POST['id']]);
+        if ($check->fetchColumn() > 0) {
+            $msg = "Error: Department/Group name already exists in this program.";
+        } else {
+            $pdo->prepare("UPDATE departments SET ProgramID = ?, Name = ?, ShortCode = ?, Type = ? WHERE DepartmentID = ?")
+                ->execute([$_POST['program_id'], trim($_POST['name']), trim($_POST['short_code']), $_POST['type'], $_POST['id']]);
+            $msg = "Department updated.";
+        }
     }
 }
 

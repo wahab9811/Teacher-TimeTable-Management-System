@@ -81,7 +81,14 @@ $activeGlobalNotice = empty($globalNotices) ? '' : implode(" &nbsp;&nbsp;&nbsp;&
                     $navTeacherBadgeTotal = $navTeacherInbox + $navTeacherAlerts;
                 }
                 ?>
-                <a href="<?php echo $base_url; ?>/teacher/dashboard.php" class="text-[14.5px] font-bold text-[#a60b26] hover:text-[#8a0a20] transition-colors hover:underline underline-offset-4 decoration-2">Go to Dashboard</a>
+                <?php if (strpos($_SERVER['PHP_SELF'], '/teacher/') === false): ?>
+                <a href="<?php echo $base_url; ?>/teacher/dashboard.php" class="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-gray-300 bg-transparent text-[13.5px] font-bold text-[#a60b26] hover:bg-gray-50 hover:border-gray-400 hover:shadow-sm transition-all duration-300 group mr-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 transform group-hover:-translate-x-1 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                    </svg>
+                    Back to Dashboard
+                </a>
+                <?php endif; ?>
                 
                 <div class="relative flex items-center ml-2 mr-2">
                     <button onclick="document.getElementById('teacherNotifDropdown').classList.toggle('hidden')" class="relative text-gray-500 hover:text-[#a60b26] transition-colors focus:outline-none" title="Notifications">
@@ -143,8 +150,9 @@ $activeGlobalNotice = empty($globalNotices) ? '' : implode(" &nbsp;&nbsp;&nbsp;&
                         $navReqs = $navScheduleReqs + $navLeaveReqs;
                         
                         $navReps = $pdo->query("SELECT COUNT(*) FROM student_reports WHERE Status = 'pending'")->fetchColumn();
+                        $navInquiries = $pdo->query("SELECT COUNT(*) FROM contact_messages WHERE Status = 'pending'")->fetchColumn();
                         $navNotifs = $pdo->query("SELECT COUNT(*) FROM notifications WHERE ScopeType = 'admin' AND IsRead = 0") ? $pdo->query("SELECT COUNT(*) FROM notifications WHERE ScopeType = 'admin' AND IsRead = 0")->fetchColumn() : 0;
-                        $navAdminBadgeTotal = $navReqs + $navReps + $navNotifs;
+                        $navAdminBadgeTotal = $navReqs + $navReps + $navInquiries + $navNotifs;
                     }
                     ?>
                     <div class="relative flex items-center ml-4 mr-2">
@@ -187,6 +195,12 @@ $activeGlobalNotice = empty($globalNotices) ? '' : implode(" &nbsp;&nbsp;&nbsp;&
                                     <?php if($navReps > 0): ?>
                                     <a href="<?php echo $base_url; ?>/admin/reports.php" class="block px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-100 hover:text-[#a60b26] transition-colors border-b border-gray-100 last:border-0">
                                         <?php echo $navReps; ?> Unresolved Student Report(s)
+                                    </a>
+                                    <?php endif; ?>
+
+                                    <?php if($navInquiries > 0): ?>
+                                    <a href="<?php echo $base_url; ?>/admin/inquiries.php" class="block px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-100 hover:text-[#a60b26] transition-colors border-b border-gray-100 last:border-0">
+                                        <?php echo $navInquiries; ?> General Inquiry(s)
                                     </a>
                                     <?php endif; ?>
                                     

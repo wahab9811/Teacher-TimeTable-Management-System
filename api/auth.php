@@ -18,6 +18,11 @@ if ($action == 'login') {
     $user = $stmt->fetch();
     
     if ($user && password_verify($password, $user['Password'])) {
+        if ($user['AccountStatus'] !== 'Active') {
+            header("Location: " . $base_url . "/login.php?error=" . urlencode("Your account has been deactivated. Please contact administration."));
+            exit;
+        }
+
         $role_type = $_POST['role_type'] ?? '';
         if ($role_type && $user['Role'] !== $role_type) {
             header("Location: " . $base_url . "/login.php?error=" . urlencode("Access denied. Please check your selected role."));
