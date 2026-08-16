@@ -32,8 +32,6 @@ $base_url = str_replace('/includes', '', $base_url);
     <link rel="stylesheet" href="<?php echo $base_url; ?>/assets/css/style.css">
 </head>
 <body class="bg-[#fcfdff] min-h-screen flex flex-col font-sans relative">
-    <!-- Abstract Background Pattern using pseudo elements or simple CSS via tailwind -->
-    <div class="fixed inset-0 pointer-events-none" style="background-image: radial-gradient(circle at 15px 15px, #efeff4 1.5px, transparent 1.5px); background-size: 30px 30px; z-index: -1;"></div>
 
     <!-- Top Header -->
     <?php if(basename($_SERVER['PHP_SELF']) !== 'login.php'): ?>

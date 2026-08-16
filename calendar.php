@@ -130,76 +130,7 @@ $calendarJson = json_encode($calendarData);
                 </div>
             </div>
             
-            <!-- Bottom Left: Upcoming Table & Filters -->
-            <div class="bg-white border border-gray-100 rounded-xl shadow-[0_2px_15px_-3px_rgba(0,0,0,0.07)] p-6">
-                <div class="flex justify-between items-center mb-6">
-                    <h3 class="text-lg font-bold text-gray-900">Upcoming Events (Next 30 Days)</h3>
-                    <a href="#" class="text-sm font-bold text-red-600 hover:text-red-800">View All</a>
-                </div>
-                
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left border-collapse min-w-[700px]">
-                        <thead>
-                            <tr class="border-b-2 border-gray-100">
-                                <th class="pb-3 text-sm font-bold text-gray-800">Date</th>
-                                <th class="pb-3 text-sm font-bold text-gray-800">Event</th>
-                                <th class="pb-3 text-sm font-bold text-gray-800">Category</th>
-                                <th class="pb-3 text-sm font-bold text-gray-800">Time</th>
-                                <th class="pb-3 text-sm font-bold text-gray-800">Description</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-100">
-                            <?php 
-                                $catStyling = [
-                                    'holiday' => ['bg'=>'bg-red-50','text'=>'text-red-600'],
-                                    'academic' => ['bg'=>'bg-green-50','text'=>'text-green-600'],
-                                    'examination' => ['bg'=>'bg-purple-50','text'=>'text-purple-600'],
-                                    'event' => ['bg'=>'bg-blue-50','text'=>'text-blue-600'],
-                                    'meeting' => ['bg'=>'bg-orange-50','text'=>'text-orange-600'],
-                                    'other' => ['bg'=>'bg-yellow-50','text'=>'text-yellow-600']
-                                ];
-                                foreach($upcoming30Days as $ev): 
-                                $cStyle = $catStyling[$ev['Category']] ?? $catStyling['event'];
-                            ?>
-                            <tr class="hover:bg-gray-50 transition-colors group">
-                                <td class="py-4 text-[13px] font-semibold text-gray-700"><?php echo date('M d, Y (D)', strtotime($ev['Date'])); ?></td>
-                                <td class="py-4 text-[13px] font-bold text-gray-900"><?php echo htmlspecialchars($ev['Title']); ?></td>
-                                <td class="py-4">
-                                    <span class="<?php echo $cStyle['bg'] . ' ' . $cStyle['text']; ?> px-2.5 py-1 rounded text-[11px] font-extrabold uppercase tracking-wide">
-                                        <?php echo htmlspecialchars($ev['Category']); ?>
-                                    </span>
-                                </td>
-                                <td class="py-4 text-[13px] font-medium text-gray-600"><?php echo htmlspecialchars($ev['EventTime']); ?></td>
-                                <td class="py-4 text-[13px] text-gray-500 truncate max-w-[200px]"><?php echo htmlspecialchars($ev['Description'] ?: '-'); ?></td>
-                            </tr>
-                            <?php endforeach; ?>
-                            <?php if(empty($upcoming30Days)): ?>
-                            <tr><td colspan="5" class="py-6 text-center text-gray-500 text-sm">No events in the next 30 days.</td></tr>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
-                </div>
 
-                <!-- Filter Bottom Bar -->
-                <div class="mt-8 pt-6 border-t border-gray-100">
-                    <h4 class="text-sm font-bold text-gray-800 mb-3">Filter Events</h4>
-                    <div class="flex flex-wrap items-center gap-3">
-                        <select class="border border-gray-200 rounded-md px-3 py-2 text-sm text-gray-600 bg-white focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon min-w-[150px]">
-                            <option>All Categories</option>
-                        </select>
-                        <select class="border border-gray-200 rounded-md px-3 py-2 text-sm text-gray-600 bg-white focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon min-w-[150px]">
-                            <option>All Event Types</option>
-                        </select>
-                        <div class="flex items-center gap-2">
-                            <input type="date" class="border border-gray-200 rounded-md px-3 py-2 text-sm text-gray-600 focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon" />
-                            <span class="text-sm font-medium text-gray-500">to</span>
-                            <input type="date" class="border border-gray-200 rounded-md px-3 py-2 text-sm text-gray-600 focus:outline-none focus:border-maroon focus:ring-1 focus:ring-maroon" />
-                        </div>
-                        <button class="bg-[#8b1818] hover:bg-red-800 text-white font-bold text-sm px-6 py-2 rounded-md shadow-sm transition-colors">Apply Filter</button>
-                        <button class="border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 font-bold text-sm px-6 py-2 rounded-md shadow-sm transition-colors">Reset</button>
-                    </div>
-                </div>
-            </div>
         </div>
 
         <!-- Right Column: Sidebar (Spans 1 col) -->
@@ -270,30 +201,7 @@ $calendarJson = json_encode($calendarData);
                 </div>
             </div>
 
-            <!-- Calendar Overview (Stats) -->
-            <div class="bg-white border border-gray-100 rounded-xl shadow-[0_2px_15px_-3px_rgba(0,0,0,0.07)] p-6">
-                <h3 class="text-base font-bold text-gray-900 mb-6">Calendar Overview <span class="text-gray-500 font-normal text-sm" id="overview-month">(<?php echo date('F'); ?>)</span></h3>
-                <div class="grid grid-cols-2 gap-3" id="overview-stats-grid">
-                    <?php 
-                        $statBoxes = [
-                            'holiday' => ['Holiday', 'text-red-500', 'border-red-100'],
-                            'academic' => ['Academic', 'text-green-600', 'border-green-100'],
-                            'examination' => ['Examinations', 'text-purple-600', 'border-purple-100'],
-                            'event' => ['Events', 'text-blue-600', 'border-blue-100'],
-                            'meeting' => ['Meetings', 'text-orange-500', 'border-orange-100'],
-                            'other' => ['Other', 'text-yellow-600', 'border-yellow-100']
-                        ];
-                        foreach($statBoxes as $key => $box):
-                            $cnt = $overviewStats[$key] ?? 0;
-                            // Add 's' logic loosely handled by labels
-                    ?>
-                    <div class="border <?php echo $box[2]; ?> bg-white rounded-lg p-3 text-center transition-shadow shadow-sm">
-                        <div class="text-2xl font-extrabold <?php echo $box[1]; ?>"><?php echo str_pad($cnt, 2, '0', STR_PAD_LEFT); ?></div>
-                        <div class="text-[11px] font-semibold text-gray-600 mt-1 uppercase"><?php echo $box[0]; ?></div>
-                    </div>
-                    <?php endforeach; ?>
-                </div>
-            </div>
+
 
             <!-- Important Notices -->
             <div class="bg-white border border-gray-100 rounded-xl shadow-[0_2px_15px_-3px_rgba(0,0,0,0.07)] p-6">
