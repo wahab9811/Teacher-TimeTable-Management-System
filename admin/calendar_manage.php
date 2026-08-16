@@ -7,15 +7,24 @@ $message='';
 if($_SERVER['REQUEST_METHOD'] === 'POST') {
     if(isset($_POST['add'])) {
         $imagePath = null;
-        if(isset($_FILES['image']) && $_FILES['image']['error'] == 0) {
-            $ext = strtolower(pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION));
-            if(in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
-                $newName = uniqid() . '_' . time() . '.' . $ext;
-                if(move_uploaded_file($_FILES['image']['tmp_name'], __DIR__ . '/../uploads/calendar/' . $newName)) {
-                    $imagePath = 'uploads/calendar/' . $newName;
+        $uploadedPaths = [];
+        if(isset($_FILES['image']) && !empty($_FILES['image']['name'][0])) {
+            $fileCount = count($_FILES['image']['name']);
+            // Limit to max 5
+            $fileCount = $fileCount > 5 ? 5 : $fileCount;
+            for($i = 0; $i < $fileCount; $i++) {
+                if($_FILES['image']['error'][$i] == 0) {
+                    $ext = strtolower(pathinfo($_FILES['image']['name'][$i], PATHINFO_EXTENSION));
+                    if(in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
+                        $newName = uniqid() . '_' . time() . '_' . $i . '.' . $ext;
+                        if(move_uploaded_file($_FILES['image']['tmp_name'][$i], __DIR__ . '/../uploads/calendar/' . $newName)) {
+                            $uploadedPaths[] = 'uploads/calendar/' . $newName;
+                        }
+                    }
                 }
             }
         }
+        $imagePath = !empty($uploadedPaths) ? implode(',', $uploadedPaths) : null;
         
         $pdo->prepare("INSERT INTO college_calendar (Title, Date, EventTime, Category, ImagePath, Description) VALUES (?,?,?,?,?,?)")
             ->execute([$_POST['title'], $_POST['date'], $_POST['time'], $_POST['category'], $imagePath, $_POST['desc']]);
@@ -28,8 +37,13 @@ if($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt = $pdo->prepare("SELECT ImagePath FROM college_calendar WHERE CalendarID=?");
         $stmt->execute([$_POST['id']]);
         $path = $stmt->fetchColumn();
-        if($path && file_exists(__DIR__ . '/../' . $path)) {
-            unlink(__DIR__ . '/../' . $path);
+        if($path) {
+            $paths = explode(',', $path);
+            foreach($paths as $p) {
+                if(file_exists(__DIR__ . '/../' . $p)) {
+                    unlink(__DIR__ . '/../' . $p);
+                }
+            }
         }
         $pdo->prepare("DELETE FROM college_calendar WHERE CalendarID=?")->execute([$_POST['id']]);
         $message="Event deleted.";
@@ -149,7 +163,7 @@ $events = $pdo->query("SELECT * FROM college_calendar ORDER BY Date DESC")->fetc
             </div>
             <div class="mb-4">
                 <label class="block text-sm font-bold text-gray-700 mb-1">Event Poster / Image (Optional)</label>
-                <input type="file" name="image" accept="image/*" class="w-full border border-gray-300 rounded px-3 py-2 text-sm outline-none focus:border-maroon focus:ring-1 focus:ring-maroon">
+                <input type="file" name="image[]" multiple accept="image/*" class="w-full border border-gray-300 rounded px-3 py-2 text-sm outline-none focus:border-maroon focus:ring-1 focus:ring-maroon" onchange="if(this.files.length > 5) { alert('You can only upload a maximum of 5 images'); this.value = ''; }">
             </div>
             <div class="mb-6">
                 <label class="block text-sm font-bold text-gray-700 mb-1">Details / Lengthy Paragraph (Optional)</label>
