@@ -4,11 +4,6 @@ $activeSession = $pdo->query("SELECT Title FROM academic_sessions WHERE IsActive
 if(!$activeSession) $activeSession = "Current Session";
 ?>
 <?php include 'includes/header.php'; ?>
-<!-- Decorative Dots Pattern Background -->
-<div class="absolute inset-0 pointer-events-none flex justify-between z-0 overflow-hidden" style="opacity: 0.4;">
-    <div class="w-[200px] h-[300px] mt-32 -ml-10" style="background-image: radial-gradient(#a60b26 1.5px, transparent 1.5px); background-size: 20px 20px;"></div>
-    <div class="w-[200px] h-[300px] mt-[400px] -mr-10" style="background-image: radial-gradient(#a60b26 1.5px, transparent 1.5px); background-size: 20px 20px;"></div>
-</div>
 
 <!-- Decorative Soft Shape -->
 <div class="fixed bottom-0 right-0 w-[600px] h-[600px] bg-red-50 rounded-full blur-[100px] pointer-events-none opacity-50 z-0 transform translate-x-1/3 translate-y-1/3"></div>
