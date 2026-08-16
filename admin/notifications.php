@@ -61,4 +61,4 @@ function toggleScope(val) {
     if(val==='teacher') document.getElementById('teach_opts').classList.remove('hidden');
 }
 </script>
-<?php include '../includes/footer.php'; ?>
+

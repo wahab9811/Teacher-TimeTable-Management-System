@@ -29,4 +29,4 @@ $slots = $pdo->query("SELECT ts.*, s.Name as ShiftName FROM time_slots ts JOIN s
         </tbody></table>
     </div>
 </div>
-<?php include '../includes/footer.php'; ?>
+

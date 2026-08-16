@@ -75,4 +75,4 @@ function fetchElig() {
     });
 }
 </script>
-<?php include '../includes/footer.php'; ?>
+

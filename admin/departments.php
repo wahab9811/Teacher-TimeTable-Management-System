@@ -87,4 +87,4 @@ function openEditModal(data) {
 }
 </script>
 
-<?php include '../includes/footer.php'; ?>
+

@@ -156,4 +156,4 @@ $downloads = $pdo->query("SELECT * FROM downloads ORDER BY CreatedAt DESC")->fet
     </div>
 </div>
 
-<?php include '../includes/footer.php'; ?>
+

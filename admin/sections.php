@@ -168,4 +168,4 @@ document.getElementById('prog_select').addEventListener('change', function() {
 });
 </script>
 
-<?php include '../includes/footer.php'; ?>
+

@@ -35,4 +35,4 @@ $programs = $pdo->query("SELECT * FROM programs")->fetchAll();
         </tbody></table>
     </div>
 </div>
-<?php include '../includes/footer.php'; ?>
+

@@ -53,4 +53,4 @@ $activeSubstitutes = $pdo->query("SELECT COUNT(*) FROM substitute_assignments WH
         </div>
     </div>
 </div>
-<?php include '../includes/footer.php'; ?>
+

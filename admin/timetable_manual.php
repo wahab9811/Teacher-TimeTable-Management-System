@@ -339,4 +339,4 @@ function toggleFree(cb, idx) {
     }
 }
 </script>
-<?php include '../includes/footer.php'; ?>
+

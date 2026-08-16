@@ -206,4 +206,4 @@ $leaves = $pdo->query("SELECT l.*, u.Name as TeacherName FROM leave_requests l J
         </div>
     </div>
 </div>
-<?php include '../includes/footer.php'; ?>
+

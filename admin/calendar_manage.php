@@ -163,4 +163,4 @@ $events = $pdo->query("SELECT * FROM college_calendar ORDER BY Date DESC")->fetc
     </div>
 </div>
 
-<?php include '../includes/footer.php'; ?>
+

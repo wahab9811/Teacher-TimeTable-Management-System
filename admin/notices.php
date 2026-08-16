@@ -139,4 +139,4 @@ $notices = $pdo->query("SELECT * FROM notices ORDER BY CreatedAt DESC")->fetchAl
     </div>
 </div>
 
-<?php include '../includes/footer.php'; ?>
+

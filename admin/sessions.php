@@ -132,4 +132,4 @@ $sessions = $pdo->query("SELECT * FROM academic_sessions ORDER BY SessionID DESC
     </div>
 </div>
 
-<?php include '../includes/footer.php'; ?>
+

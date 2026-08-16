@@ -226,4 +226,4 @@ function cloneData($testData, $course) {
         <?php endif; ?>
     </div>
 </div>
-<?php include '../includes/footer.php'; ?>
+

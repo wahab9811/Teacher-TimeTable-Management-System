@@ -69,4 +69,4 @@ function downloadWorkloadPDF() {
     downloadPDF('workload_container', 'Workload_Report.pdf', false);
 }
 </script>
-<?php include '../includes/footer.php'; ?>
+
