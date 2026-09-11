@@ -61,13 +61,13 @@ $calendarJson = json_encode($calendarData);
     
     <!-- Top Header -->
     <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
-        <div class="flex items-center gap-4">
-            <div class="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center shrink-0">
-                <svg class="w-6 h-6 text-[#8b1818]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+        <div class="flex items-center gap-5">
+            <div class="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center shrink-0">
+                <svg class="w-8 h-8 text-[#a60b26]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
             </div>
             <div>
-                <h1 class="text-3xl font-extrabold text-[#1f2937] tracking-tight">Academic Calendar</h1>
-                <p class="text-sm text-gray-500 mt-1">Stay updated with all academic events, holidays and important dates.</p>
+                <h1 class="text-[26px] font-bold text-gray-900 tracking-tight leading-tight mb-2">Academic Calendar</h1>
+                <p class="text-gray-500 text-[15px]">Stay updated with all academic events, holidays and important dates.</p>
             </div>
         </div>
 
@@ -80,7 +80,7 @@ $calendarJson = json_encode($calendarData);
         <div class="lg:col-span-3 flex flex-col gap-6">
             
             <!-- Calendar Card -->
-            <div class="bg-white border border-gray-100 rounded-xl shadow-[0_2px_15px_-3px_rgba(0,0,0,0.07)] p-6">
+            <div class="bg-white border border-gray-200 rounded shadow-md p-6">
                 <!-- Toolbar -->
                 <div class="flex flex-wrap justify-between items-center mb-6 gap-4">
                     <div class="flex items-center gap-2">
@@ -149,7 +149,7 @@ $calendarJson = json_encode($calendarData);
         <div class="lg:col-span-1 flex flex-col gap-6">
             
             <!-- Upcoming Events Sidebar -->
-            <div class="bg-white border border-gray-100 rounded-xl shadow-[0_2px_15px_-3px_rgba(0,0,0,0.07)] p-6">
+            <div class="bg-white border border-gray-200 rounded shadow-md p-6">
                 <div class="flex justify-between items-center mb-6">
                     <h3 class="text-base font-bold text-gray-900">Upcoming Events</h3>
                     <a href="#" class="text-[13px] font-bold text-red-600 hover:text-red-800">View All</a>

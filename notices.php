@@ -7,14 +7,7 @@ $notices = $pdo->query("SELECT * FROM notices WHERE IsActive = 1 ORDER BY Create
 ?>
 <?php include 'includes/header.php'; ?>
 
-<!-- Decorative Dots Pattern Background -->
-<div class="absolute inset-0 pointer-events-none flex justify-between z-0 overflow-hidden" style="opacity: 0.4;">
-    <div class="w-[200px] h-[300px] mt-32 -ml-10" style="background-image: radial-gradient(#a60b26 1.5px, transparent 1.5px); background-size: 20px 20px;"></div>
-    <div class="w-[200px] h-[300px] mt-[400px] -mr-10" style="background-image: radial-gradient(#a60b26 1.5px, transparent 1.5px); background-size: 20px 20px;"></div>
-</div>
 
-<!-- Decorative Soft Shape -->
-<div class="fixed bottom-0 right-0 w-[600px] h-[600px] bg-red-50 rounded-full blur-[100px] pointer-events-none opacity-50 z-0 transform translate-x-1/3 translate-y-1/3"></div>
 
 <div class="max-w-[760px] w-[92%] mx-auto mt-10 mb-16 relative z-10">
 
@@ -26,7 +19,7 @@ $notices = $pdo->query("SELECT * FROM notices WHERE IsActive = 1 ORDER BY Create
     <!-- Feed Container -->
     <div class="flex flex-col space-y-8">
         <?php foreach($notices as $n): ?>
-            <div class="bg-white rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.06)] border border-gray-100 overflow-hidden hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] transition-all duration-300">
+            <div class="bg-white rounded shadow-md border border-gray-200 overflow-hidden">
                 
                 <!-- Notice Header -->
                 <div class="px-6 py-4 border-b border-gray-50 flex justify-between items-start bg-gray-50/50">
@@ -57,7 +50,7 @@ $notices = $pdo->query("SELECT * FROM notices WHERE IsActive = 1 ORDER BY Create
         <?php endforeach; ?>
         
         <?php if(empty($notices)): ?>
-            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center">
+            <div class="bg-white rounded shadow-md border border-gray-200 p-12 text-center">
                 <div class="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
                     <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path></svg>
                 </div>

@@ -52,7 +52,7 @@ if($_SERVER['REQUEST_METHOD'] === 'POST') {
 $events = $pdo->query("SELECT * FROM college_calendar ORDER BY Date DESC")->fetchAll(PDO::FETCH_ASSOC);
 ?>
 <?php include '../includes/header.php'; ?>
-<div class="max-w-7xl mx-auto flex gap-6 mt-4 pb-12">
+<div class="w-full px-2 md:px-8 mx-auto flex gap-6 mt-4 pb-12">
     <?php include '../includes/admin_sidebar.php'; ?>
     
     <div class="flex-1 min-w-0">
@@ -118,7 +118,7 @@ $events = $pdo->query("SELECT * FROM college_calendar ORDER BY Date DESC")->fetc
                         </tr>
                     <?php endforeach; ?>
                     <?php if(empty($events)): ?>
-                        <tr><td colspan="4" class="p-6 text-center text-gray-500 font-medium">No events currently scheduled.</td></tr>
+                        <tr><td colspan="5" class="p-6 text-center text-gray-500 font-medium">No events currently scheduled.</td></tr>
                     <?php endif; ?>
                 </tbody>
             </table>

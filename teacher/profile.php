@@ -92,14 +92,8 @@ $stmtUser->execute([$teacherId]);
 $tInfo = $stmtUser->fetch();
 ?>
 <?php include '../includes/header.php'; ?>
-<div class="max-w-7xl mx-auto flex gap-6 mt-4 pb-12 items-start">
-    <aside class="w-64 bg-white p-4 shadow-md rounded shrink-0 sticky top-4">
-        <ul class="space-y-2">
-            <li><a href="dashboard.php" class="block p-2 hover:bg-gray-100 rounded">Dashboard</a></li>
-            <li><a href="notifications.php" class="block p-2 hover:bg-gray-100 rounded">Notifications</a></li>
-            <li><a href="profile.php" class="block p-2 bg-gray-100 rounded font-bold text-maroon">Profile</a></li>
-        </ul>
-    </aside>
+<div class="w-full px-2 md:px-8 mx-auto flex gap-6 mt-4 pb-12 items-start">
+    <?php include '../includes/teacher_sidebar.php'; ?>
     
     <div class="flex-1 min-w-0">
         <?php if($message): ?><div class="bg-green-100 text-green-700 p-3 mb-4 font-bold border rounded"><?php echo $message; ?></div><?php endif; ?>

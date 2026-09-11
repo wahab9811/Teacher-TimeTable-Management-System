@@ -27,6 +27,16 @@ if ($action == 'login') {
         $_SESSION['user_id'] = $user['UserID'];
         $_SESSION['user_name'] = $user['Name'];
         $_SESSION['role'] = $user['Role'];
+
+        // --- Remember Me: create persistent token ---
+        if (!empty($_POST['remember'])) {
+            $selector  = bin2hex(random_bytes(8));
+            $validator = bin2hex(random_bytes(32));
+            $expires   = date('Y-m-d H:i:s', time() + 30 * 24 * 3600);
+            $ins = $pdo->prepare("INSERT INTO auth_tokens (UserID, Selector, ValidatorHash, ExpiresAt) VALUES (?, ?, ?, ?)");
+            $ins->execute([$user['UserID'], $selector, hash('sha256', $validator), $expires]);
+            setcookie('remember', $selector . ':' . $validator, time() + 30 * 24 * 3600, '/', '', false, true);
+        }
         
         if ($user['Role'] === 'admin') {
             header("Location: " . $base_url . "/admin/dashboard.php");
@@ -41,6 +51,13 @@ if ($action == 'login') {
 }
 
 if ($action == 'logout') {
+    if (!empty($_COOKIE['remember'])) {
+        $parts = explode(':', $_COOKIE['remember'], 2);
+        if (count($parts) === 2) {
+            $pdo->prepare("DELETE FROM auth_tokens WHERE Selector = ?")->execute([$parts[0]]);
+        }
+        setcookie('remember', '', time() - 3600, '/', '', false, true);
+    }
     session_destroy();
     header("Location: " . $base_url . "/index.php");
     exit;

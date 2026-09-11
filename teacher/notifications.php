@@ -10,23 +10,17 @@ if($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['mark_all'])) {
     $pdo->prepare("UPDATE notifications SET IsRead = 1 WHERE NotificationID = ? AND TeacherID = ?")->execute([$_POST['id'], $teacherId]);
 }
 
-$stmt = $pdo->prepare("SELECT * FROM notifications WHERE (TeacherID = ? OR ScopeType = 'global') AND IsRead = 0 ORDER BY CreatedAt DESC");
+$stmt = $pdo->prepare("SELECT * FROM notifications WHERE TeacherID = ? AND IsRead = 0 ORDER BY CreatedAt DESC");
 $stmt->execute([$teacherId]);
 $unread = $stmt->fetchAll();
 
-$stmt2 = $pdo->prepare("SELECT * FROM notifications WHERE (TeacherID = ? OR ScopeType = 'global') AND IsRead = 1 ORDER BY CreatedAt DESC LIMIT 20");
+$stmt2 = $pdo->prepare("SELECT * FROM notifications WHERE TeacherID = ? AND IsRead = 1 ORDER BY CreatedAt DESC LIMIT 20");
 $stmt2->execute([$teacherId]);
 $read = $stmt2->fetchAll();
 ?>
 <?php include '../includes/header.php'; ?>
-<div class="max-w-7xl mx-auto flex gap-6 mt-4 pb-12">
-    <aside class="w-64 bg-white p-4 shadow-md rounded h-full">
-        <ul class="space-y-2">
-            <li><a href="dashboard.php" class="block p-2 hover:bg-gray-100 rounded">Dashboard</a></li>
-            <li><a href="notifications.php" class="block p-2 bg-gray-100 rounded font-bold text-maroon">Notifications</a></li>
-            <li><a href="profile.php" class="block p-2 hover:bg-gray-100 rounded">Profile</a></li>
-        </ul>
-    </aside>
+<div class="w-full px-2 md:px-8 mx-auto flex gap-6 mt-4 pb-12">
+    <?php include '../includes/teacher_sidebar.php'; ?>
     <div class="flex-1 bg-white p-6 shadow-md rounded">
         <div class="flex justify-between items-center mb-4">
             <h2 class="text-2xl font-bold text-maroon">Notifications</h2>

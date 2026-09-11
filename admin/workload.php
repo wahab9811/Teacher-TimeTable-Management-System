@@ -32,10 +32,13 @@ foreach($teachers as &$t) {
         $t['BadgeClass']  = 'badge-normal';
     }
 }
+unset($t); // Fix: Unset reference to prevent overwriting the last element in the next loop
 ?>
 <?php include '../includes/header.php'; ?>
-<div class="max-w-7xl mx-auto mt-4 pb-12">
-    <div class="flex justify-between items-center bg-white p-6 shadow-md rounded mb-4">
+<div class="w-full px-2 md:px-8 mx-auto flex gap-6 mt-4 pb-12">
+    <?php include '../includes/admin_sidebar.php'; ?>
+    <div class="flex-1">
+        <div class="flex justify-between items-center bg-white p-6 shadow-md rounded mb-4">
         <h2 class="text-2xl font-bold text-maroon">Teacher Workload Report</h2>
         <button onclick="downloadWorkloadPDF()" class="bg-gray-800 text-white px-4 py-2 rounded">Export PDF</button>
     </div>
@@ -62,6 +65,7 @@ foreach($teachers as &$t) {
                 <?php endforeach; ?>
             </tbody>
         </table>
+        </div>
     </div>
 </div>
 <script>

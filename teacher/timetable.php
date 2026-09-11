@@ -13,7 +13,10 @@ if ($targetDay === 'Today') $dayFilter = date('l');
 if ($targetDay === 'Yesterday') $dayFilter = date('l', strtotime('-1 day'));
 
 // Fetch teaching periods info
-$stmt = $pdo->prepare("SELECT t.*, ts.PeriodNumber, ts.StartTime, ts.EndTime, c.Name as CourseName, r.Name as RoomName,
+$stmt = $pdo->prepare("SELECT t.*, ts.PeriodNumber, 
+                       IF(t.Day='Friday' AND ts.FridayStartTime IS NOT NULL, ts.FridayStartTime, ts.StartTime) as StartTime,
+                       IF(t.Day='Friday' AND ts.FridayEndTime IS NOT NULL, ts.FridayEndTime, ts.EndTime) as EndTime,
+                       c.Name as CourseName, r.Name as RoomName,
                        p.Name as ProgName, d.Name as DeptName, s.Label as SemName
                        FROM timetable t 
                        JOIN time_slots ts ON t.SlotID=ts.SlotID
@@ -27,18 +30,40 @@ $stmt = $pdo->prepare("SELECT t.*, ts.PeriodNumber, ts.StartTime, ts.EndTime, c.
 $stmt->execute([$teacherId]);
 $tt = $stmt->fetchAll();
 
+// Fetch active substitute assignments for this teacher
+$stmtSub = $pdo->prepare("SELECT t.*, ts.PeriodNumber, 
+                       IF(t.Day='Friday' AND ts.FridayStartTime IS NOT NULL, ts.FridayStartTime, ts.StartTime) as StartTime,
+                       IF(t.Day='Friday' AND ts.FridayEndTime IS NOT NULL, ts.FridayEndTime, ts.EndTime) as EndTime,
+                       c.Name as CourseName, r.Name as RoomName,
+                       p.Name as ProgName, d.Name as DeptName, s.Label as SemName,
+                       1 as IsSubstitute
+                       FROM substitute_assignments sa
+                       JOIN timetable t ON sa.TimetableID = t.TimetableID
+                       JOIN time_slots ts ON t.SlotID=ts.SlotID
+                       LEFT JOIN courses c ON t.CourseID=c.CourseID
+                       LEFT JOIN rooms r ON t.RoomID=r.RoomID
+                       LEFT JOIN programs p ON t.ProgramID=p.ProgramID
+                       LEFT JOIN departments d ON t.DepartmentID=d.DepartmentID
+                       LEFT JOIN semesters s ON t.SemesterID=s.SemesterID
+                       WHERE sa.SubstituteTeacherID=? 
+                       AND sa.Status='active'
+                       AND CURDATE() BETWEEN sa.FromDate AND sa.ToDate");
+$stmtSub->execute([$teacherId]);
+$subTT = $stmtSub->fetchAll();
+
+$tt = array_merge($tt, $subTT);
+
 $dayClasses = array_filter($tt, function($item) use ($dayFilter) { return $item['Day'] === $dayFilter; });
+
+// Unread Notifications
+$stmtNotif = $pdo->prepare("SELECT COUNT(*) FROM notifications WHERE TeacherID = ? AND IsRead = 0");
+$stmtNotif->execute([$teacherId]);
+$unreadNotif = $stmtNotif->fetchColumn();
 ?>
 <?php include '../includes/header.php'; ?>
-<div class="max-w-7xl mx-auto flex gap-6 mt-4">
+<div class="w-full px-2 md:px-8 mx-auto flex gap-6 mt-4">
     <!-- Sidebar -->
-    <aside class="w-64 bg-white p-4 shadow-md rounded h-full">
-        <h3 class="text-lg font-bold text-maroon mb-4">Teacher Menu</h3>
-        <ul class="space-y-2">
-            <li><a href="dashboard.php" class="block p-2 hover:bg-gray-100 rounded">Dashboard</a></li>
-            <li><a href="timetable.php" class="block p-2 bg-gray-100 rounded text-maroon font-semibold">My Timetable</a></li>
-        </ul>
-    </aside>
+    <?php include '../includes/teacher_sidebar.php'; ?>
     <div class="flex-1">
         <h2 class="text-2xl font-bold text-maroon mb-4">My Timetable</h2>
         <div class="bg-white p-6 shadow-md rounded mb-4">
@@ -67,10 +92,10 @@ $dayClasses = array_filter($tt, function($item) use ($dayFilter) { return $item[
                     <thead class="bg-gray-100"><tr><th class="border p-2">Period</th><th class="border p-2">Time</th><th class="border p-2">Course</th><th class="border p-2">Details</th><th class="border p-2">Room</th></tr></thead>
                     <tbody>
                         <?php foreach($dayClasses as $c): ?>
-                            <?php if($c['IsFree']): ?>
-                                <tr class="free-period-row"><td class="border p-2 text-center"><?php echo $c['PeriodNumber']; ?></td><td class="border p-2"><?php echo $c['StartTime'] . ' - ' . $c['EndTime']; ?></td><td colspan="3" class="border p-2 text-center">Free</td></tr>
+                            <?php if(empty($c['IsFree'])): ?>
+                                <tr><td class="border p-2 text-center"><?php echo $c['PeriodNumber']; ?></td><td class="border p-2"><?php echo $c['StartTime'] . ' - ' . $c['EndTime']; ?></td><td class="border p-2"><?php echo $c['CourseName']; ?><?php if(!empty($c['IsSubstitute'])) echo ' <span class="text-orange-500 text-xs font-bold">(Substitute)</span>'; ?></td><td class="border p-2"><?php echo $c['ProgName'].' - '.$c['DeptName'].' - '.$c['SemName']; ?></td><td class="border p-2"><?php echo $c['RoomName']; ?></td></tr>
                             <?php else: ?>
-                                <tr><td class="border p-2 text-center"><?php echo $c['PeriodNumber']; ?></td><td class="border p-2"><?php echo $c['StartTime'] . ' - ' . $c['EndTime']; ?></td><td class="border p-2"><?php echo $c['CourseName']; ?></td><td class="border p-2"><?php echo $c['ProgName'].' - '.$c['DeptName'].' - '.$c['SemName']; ?></td><td class="border p-2"><?php echo $c['RoomName']; ?></td></tr>
+                                <tr class="free-period-row"><td class="border p-2 text-center"><?php echo $c['PeriodNumber']; ?></td><td class="border p-2"><?php echo $c['StartTime'] . ' - ' . $c['EndTime']; ?></td><td colspan="3" class="border p-2 text-center">Free</td></tr>
                             <?php endif; ?>
                         <?php endforeach; ?>
                         <?php if(empty($dayClasses)) echo "<tr><td colspan='5' class='p-2 text-center text-gray-500'>No classes scheduled.</td></tr>"; ?>
@@ -108,11 +133,17 @@ $dayClasses = array_filter($tt, function($item) use ($dayFilter) { return $item[
                                     $slot = array_filter($tt, function($item) use ($d, $i) { return $item['Day'] === $d && $item['PeriodNumber'] == $i; });
                                     $slot = array_shift($slot);
                                 ?>
-                                    <td class="border p-2 text-center text-sm <?php echo (!$slot || $slot['IsFree']) ? 'bg-gray-50' : ''; ?>">
+                                    <td class="border p-2 text-center text-sm <?php echo (!$slot || !empty($slot['IsFree'])) ? 'bg-gray-50' : ''; ?>">
                                         <?php if($slot && empty($slot['IsFree'])): ?>
+                                            <?php if($d === 'Friday' && !empty($slot['StartTime'])): ?>
+                                                <div class="text-[10px] text-maroon flex justify-center font-bold mb-1 border-b border-gray-200 pb-1"><?php echo substr($slot['StartTime'],0,5).' - '.substr($slot['EndTime'],0,5); ?></div>
+                                            <?php endif; ?>
                                             <div class="font-bold text-maroon"><?php echo htmlspecialchars($slot['CourseName'] ?? ''); ?></div>
                                             <div class="text-[11px] text-gray-600 my-1"><?php echo htmlspecialchars(($slot['ProgName'] ?? '').' - '.($slot['DeptName'] ?? '')); ?></div>
-                                            <div class="text-[12px] italic font-semibold text-gray-500"><?php echo htmlspecialchars($slot['RoomName'] ?? ''); ?></div>
+                                            <div class="text-[12px] italic font-semibold text-gray-500">
+                                                <?php echo htmlspecialchars($slot['RoomName'] ?? ''); ?>
+                                                <?php if(!empty($slot['IsSubstitute'])) echo '<br><span class="text-orange-500">(Substitute)</span>'; ?>
+                                            </div>
                                         <?php else: ?>
                                             <span class="text-gray-300">-</span>
                                         <?php endif; ?>

@@ -5,6 +5,25 @@ $doc_root = str_replace('\\', '/', $_SERVER['DOCUMENT_ROOT']);
 $dir_path = str_replace('\\', '/', __DIR__);
 $base_url = str_replace($doc_root, '', $dir_path);
 
+// --- Remember Me: auto-login from cookie ---
+if (!isset($_SESSION['user_id']) && !empty($_COOKIE['remember'])) {
+    require_once __DIR__ . '/config/db.php';
+    $parts = explode(':', $_COOKIE['remember'], 2);
+    if (count($parts) === 2) {
+        list($selector, $validator) = $parts;
+        $stmt = $pdo->prepare("SELECT t.ValidatorHash, u.UserID, u.Name, u.Role FROM auth_tokens t JOIN users u ON u.UserID = t.UserID WHERE t.Selector = ? AND t.ExpiresAt > ?");
+        $stmt->execute([$selector, date('Y-m-d H:i:s')]);
+        $tok = $stmt->fetch();
+        if ($tok && hash_equals($tok['ValidatorHash'], hash('sha256', $validator))) {
+            $_SESSION['user_id']   = $tok['UserID'];
+            $_SESSION['user_name'] = $tok['Name'];
+            $_SESSION['role']      = $tok['Role'];
+        } else {
+            setcookie('remember', '', time() - 3600, '/', '', false, true);
+        }
+    }
+}
+
 if(isset($_SESSION['user_id'])) {
     if($_SESSION['role'] === 'admin') header("Location: " . $base_url . "/admin/dashboard.php");
     else header("Location: " . $base_url . "/teacher/dashboard.php");
@@ -26,34 +45,23 @@ $error = $_GET['error'] ?? '';
     <div class="flex p-[5px] bg-[#f8f9fa] rounded-xl border border-gray-100 mb-8 mx-auto shadow-inner">
         <!-- Teacher Tab -->
         <button type="button" id="tab-teacher" onclick="switchTab('teacher')" class="relative w-1/2 py-2.5 text-center text-[14px] font-bold rounded-lg flex justify-center items-center bg-white shadow-[0_2px_8px_rgba(0,0,0,0.04)] border-b-[3px] border-[#a60b26] transition-all text-[#a60b26]">
-            <svg class="w-4 h-4 mr-2 text-[#a60b26]" id="icon-tab-teacher" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"></path>
-            </svg>
             <span id="text-tab-teacher">Teacher</span>
         </button>
         <!-- Admin Tab -->
         <button type="button" id="tab-admin" onclick="switchTab('admin')" class="relative w-1/2 py-2.5 text-center text-[14px] font-bold rounded-lg flex justify-center items-center text-gray-500 hover:text-gray-700 transition-all border-b-[3px] border-transparent">
-            <svg class="w-4 h-4 mr-2 text-gray-500" id="icon-tab-admin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-            </svg>
             <span id="text-tab-admin">Admin</span>
         </button>
     </div>
 
     <!-- Main Icon & Title -->
     <div class="text-center mb-8">
-        <div class="flex justify-center mb-4" id="main-icon-container">
-            <svg id="main-icon" class="w-[52px] h-[52px] text-[#a60b26]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path id="main-icon-path" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"></path>
-            </svg>
-        </div>
         <h2 id="login-title" class="text-[28px] font-extrabold text-[#111827] tracking-tight mb-2">Teacher Login</h2>
-        <p id="login-subtitle" class="text-[14px] text-gray-500">Sign in to get access your  dashboard and view your timetable</p>
+        <p class="text-[14px] text-gray-500">Sign in to securely access your account</p>
     </div>
 
     <!-- Error Block -->
     <?php if($error): ?>
-        <div class="bg-red-50 border-l-4 border-red-500 text-red-700 p-4 rounded mb-6 animate-pulse" role="alert">
+        <div class="bg-red-50 border-l-4 border-red-500 text-red-700 p-4 rounded mb-6" role="alert">
             <p class="font-bold text-[14px]">Login Failed</p>
             <p class="text-[13px]"><?php echo htmlspecialchars($error); ?></p>
         </div>
@@ -98,87 +106,51 @@ $error = $_GET['error'] ?? '';
         <!-- Remember & Forgot -->
         <div class="flex items-center justify-between pt-2">
             <div class="flex items-center">
-                <input id="remember_me" type="checkbox" class="h-4 w-4 text-[#a60b26] focus:ring-[#a60b26] border-gray-300 rounded cursor-pointer">
+                <input id="remember_me" name="remember" value="1" type="checkbox" class="h-4 w-4 text-[#a60b26] focus:ring-[#a60b26] border-gray-300 rounded cursor-pointer">
                 <label for="remember_me" class="ml-2 block text-[13px] text-gray-500 font-medium cursor-pointer">Remember me</label>
             </div>
             <div class="text-[13px]" id="forgot-password-container">
-                <a href="#" class="font-semibold text-[#a60b26] hover:text-[#7a081c] transition-colors">Forgot password?</a>
+                <a href="<?php echo $base_url; ?>/forgot_password.php" class="font-semibold text-[#a60b26] hover:text-[#7a081c] transition-colors">Forgot password?</a>
             </div>
         </div>
 
         <!-- Button -->
         <button type="submit" class="w-full flex justify-center items-center py-[12px] px-4 border border-transparent rounded-[8px] shadow-sm text-[15px] font-bold text-white bg-[#a60b26] hover:bg-[#8a0a20] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#a60b26] transition-all duration-300 mt-6 !mb-2">
-            <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"></path>
-            </svg>
             Sign In
         </button>
     </form>
     
-    <!-- Footer line -->
-    <div class="mt-8 relative flex justify-center items-center">
-        <div class="absolute inset-x-0 top-1/2 flex items-center transform -translate-y-1/2" aria-hidden="true">
-            <div class="w-full border-t border-gray-200/80"></div>
-        </div>
-        <div class="relative bg-white px-4 text-[12px] text-gray-400 font-medium">
-            Secure access to your dashboard
-        </div>
-    </div>
-    <div class="mt-2 flex justify-center text-[#a60b26]">
-        <svg class="w-5 h-5 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.092 2.023-.27 3.013m-1.258 1.516A11.946 11.946 0 0112 21c-3.17 0-6.173-1.248-8.435-3.413M12 21c3.17 0 6.173-1.248 8.435-3.413M7.5 14.5c.343.344.717.653 1.118.924" />
-        </svg>
-    </div>
+
 </div>
 
 <script>
 const activeTabClass = "relative w-1/2 py-2.5 text-center text-[14px] font-bold rounded-lg flex justify-center items-center bg-white shadow-[0_2px_8px_rgba(0,0,0,0.04)] border-b-[3px] border-[#a60b26] transition-all text-[#a60b26]";
 const inactiveTabClass = "relative w-1/2 py-2.5 text-center text-[14px] font-bold rounded-lg flex justify-center items-center text-gray-500 hover:text-gray-700 transition-all border-b-[3px] border-transparent";
-const activeIconClass = "w-4 h-4 mr-2 text-[#a60b26]";
-const inactiveIconClass = "w-4 h-4 mr-2 text-gray-500";
 const activeTextClass = "text-[#a60b26]";
 const inactiveTextClass = "text-gray-500";
-
-const pathTeacher = "M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z";
-const pathAdmin = "M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z";
 
 function switchTab(role) {
     document.getElementById('role_type').value = role;
     const tabTeacher = document.getElementById('tab-teacher');
     const tabAdmin = document.getElementById('tab-admin');
     
-    const iconTeacher = document.getElementById('icon-tab-teacher');
     const textTeacher = document.getElementById('text-tab-teacher');
-    
-    const iconAdmin = document.getElementById('icon-tab-admin');
     const textAdmin = document.getElementById('text-tab-admin');
 
     const loginTitle = document.getElementById('login-title');
-    const loginSubtitle = document.getElementById('login-subtitle');
-    const mainIconPath = document.getElementById('main-icon-path');
     const forgotPassword = document.getElementById('forgot-password-container');
     
     if (role === 'teacher') {
         tabTeacher.className = activeTabClass;
-        iconTeacher.className.baseVal = activeIconClass;
-        
         tabAdmin.className = inactiveTabClass;
-        iconAdmin.className.baseVal = inactiveIconClass;
         
         loginTitle.textContent = "Teacher Login";
-        loginSubtitle.textContent = "Sign in to get access your  dashboard and view your timetable";
-        mainIconPath.setAttribute('d', pathTeacher);
         forgotPassword.style.display = 'block';
     } else {
         tabAdmin.className = activeTabClass;
-        iconAdmin.className.baseVal = activeIconClass;
-        
         tabTeacher.className = inactiveTabClass;
-        iconTeacher.className.baseVal = inactiveIconClass;
         
         loginTitle.textContent = "Admin Login";
-        loginSubtitle.textContent = "Sign in to manage timetables and access your dashboard";
-        mainIconPath.setAttribute('d', pathAdmin);
         forgotPassword.style.display = 'none';
     }
 }

@@ -1,33 +1,39 @@
 <?php
 // Calculate pending requests for the badge
 if (isset($pdo)) {
-    $pendingRequests = $pdo->query("SELECT COUNT(*) FROM requests WHERE Status = 'pending_admin'")->fetchColumn();
-} else {
-    $pendingRequests = 0;
+    $pendingRequests = $pdo->query("SELECT (SELECT COUNT(*) FROM requests WHERE Status = 'pending_admin') + (SELECT COUNT(*) FROM leave_requests WHERE Status = 'pending')")->fetchColumn();
+    $pendingReports = $pdo->query("SELECT COUNT(*) FROM student_reports WHERE Status = 'pending'")->fetchColumn();
+} else { 
+    $pendingRequests = 0; 
+    $pendingReports = 0;
 }
 $current_page = basename($_SERVER['PHP_SELF']);
+
+$menuGroups = [
+  'Setup'      => ['programs.php'=>'Programs','departments.php'=>'Departments','semesters.php'=>'Semesters','sections.php'=>'Sections','courses.php'=>'Courses','rooms.php'=>'Rooms','shifts.php'=>'Shifts & Time Slots'],
+  'People'     => ['teachers.php'=>'Teachers','designations.php'=>'Manage Designations','workload.php'=>'Teacher Workload'],
+  'Timetable'  => ['timetable_manual.php'=>'Manual Timetable','timetable_auto.php'=>'Auto Timetable','timetable_viewer.php'=>'Timetable Viewer'],
+  'Operations' => ['requests.php'=>'Requests','substitutes.php'=>'Substitutes','reports.php'=>'Student Reports'],
+  'Content'    => ['announcements.php'=>'Announcements','notices.php'=>'Notice Board','calendar_manage.php'=>'Calendar Edit','downloads.php'=>'Manage Downloads'],
+];
 ?>
 <aside class="w-64 bg-white p-4 shadow-md rounded h-full flex-shrink-0">
-    <h3 class="text-lg font-bold text-maroon mb-4">Admin Menu</h3>
-    <ul class="space-y-2">
-        <li><a href="dashboard.php" class="block p-2 rounded <?= $current_page == 'dashboard.php' ? 'bg-gray-100 text-maroon font-semibold' : 'hover:bg-gray-100' ?>">Dashboard</a></li>
-        <li><a href="sessions.php" class="block p-2 rounded <?= $current_page == 'sessions.php' ? 'bg-gray-100 text-maroon font-semibold' : 'hover:bg-gray-100' ?>">Manage Sessions</a></li>
-        <li><a href="programs.php" class="block p-2 rounded <?= $current_page == 'programs.php' ? 'bg-gray-100 text-maroon font-semibold' : 'hover:bg-gray-100' ?>">Programs</a></li>
-        <li><a href="departments.php" class="block p-2 rounded <?= $current_page == 'departments.php' ? 'bg-gray-100 text-maroon font-semibold' : 'hover:bg-gray-100' ?>">Departments</a></li>
-        <li><a href="semesters.php" class="block p-2 rounded <?= $current_page == 'semesters.php' ? 'bg-gray-100 text-maroon font-semibold' : 'hover:bg-gray-100' ?>">Semesters</a></li>
-        <li><a href="sections.php" class="block p-2 rounded <?= $current_page == 'sections.php' ? 'bg-gray-100 text-maroon font-semibold' : 'hover:bg-gray-100' ?>">Sections</a></li>
-        <li><a href="rooms.php" class="block p-2 rounded <?= $current_page == 'rooms.php' ? 'bg-gray-100 text-maroon font-semibold' : 'hover:bg-gray-100' ?>">Rooms</a></li>
-        <li><a href="shifts.php" class="block p-2 rounded <?= $current_page == 'shifts.php' ? 'bg-gray-100 text-maroon font-semibold' : 'hover:bg-gray-100' ?>">Shifts & Time Slots</a></li>
-        <li><a href="teachers.php" class="block p-2 rounded <?= $current_page == 'teachers.php' ? 'bg-gray-100 text-maroon font-semibold' : 'hover:bg-gray-100' ?>">Teachers</a></li>
-        <li><a href="courses.php" class="block p-2 rounded <?= $current_page == 'courses.php' ? 'bg-gray-100 text-maroon font-semibold' : 'hover:bg-gray-100' ?>">Courses</a></li>
-        <li><a href="timetable_manual.php" class="block p-2 rounded <?= $current_page == 'timetable_manual.php' ? 'bg-gray-100 text-maroon font-semibold' : 'hover:bg-gray-100' ?>">Manual Timetable</a></li>
-        <li><a href="timetable_auto.php" class="block p-2 rounded <?= $current_page == 'timetable_auto.php' ? 'bg-gray-100 text-maroon font-semibold' : 'hover:bg-gray-100' ?>">Auto Timetable</a></li>
-        <li><a href="requests.php" class="block p-2 rounded <?= $current_page == 'requests.php' ? 'bg-gray-100 text-maroon font-semibold' : 'hover:bg-gray-100' ?>">Requests (<span class="text-red-500 font-bold"><?= $pendingRequests ?></span>)</a></li>
-        <li><a href="substitutes.php" class="block p-2 rounded <?= $current_page == 'substitutes.php' ? 'bg-gray-100 text-maroon font-semibold' : 'hover:bg-gray-100' ?>">Substitutes</a></li>
-        <li><a href="notifications.php" class="block p-2 rounded <?= $current_page == 'notifications.php' ? 'bg-gray-100 text-maroon font-semibold' : 'hover:bg-gray-100' ?>">Notifications</a></li>
-        <li><a href="calendar_manage.php" class="block p-2 rounded <?= $current_page == 'calendar_manage.php' ? 'bg-gray-100 text-maroon font-semibold' : 'hover:bg-gray-100' ?>">Calendar Edit</a></li>
-        <li><a href="notices.php" class="block p-2 rounded <?= $current_page == 'notices.php' ? 'bg-gray-100 text-maroon font-semibold' : 'hover:bg-gray-100' ?>">Notice Board</a></li>
-        <li><a href="downloads.php" class="block p-2 rounded <?= $current_page == 'downloads.php' ? 'bg-gray-100 text-maroon font-semibold' : 'hover:bg-gray-100' ?>">Manage Downloads</a></li>
-        <li><a href="workload.php" class="block p-2 rounded <?= $current_page == 'workload.php' ? 'bg-gray-100 text-maroon font-semibold' : 'hover:bg-gray-100' ?>">Teacher Workload</a></li>
-    </ul>
+  <h3 class="text-lg font-bold text-maroon mb-4">Menu</h3>
+  <ul class="space-y-1">
+    <li><a href="dashboard.php" class="block p-2 rounded <?= $current_page=='dashboard.php' ? 'bg-gray-100 text-maroon font-semibold':'hover:bg-gray-100' ?>">Dashboard</a></li>
+    <li><a href="sessions.php" class="block p-2 rounded <?= $current_page=='sessions.php' ? 'bg-gray-100 text-maroon font-semibold':'hover:bg-gray-100' ?>">Manage Sessions</a></li>
+    <?php foreach($menuGroups as $groupName => $items):
+        $isOpen = array_key_exists($current_page, $items); ?>
+      <li>
+        <details <?= $isOpen ? 'open' : '' ?>>
+          <summary class="p-2 rounded cursor-pointer font-semibold text-gray-700 hover:bg-gray-100 select-none"><?= $groupName ?></summary>
+          <ul class="ml-2 mt-1 space-y-1 border-l pl-2">
+            <?php foreach($items as $page => $label): ?>
+              <li><a href="<?= $page ?>" class="block p-2 rounded text-sm <?= $current_page==$page ? 'bg-gray-100 text-maroon font-semibold':'hover:bg-gray-100' ?>"><?= $label ?><?php if($page==='requests.php'): ?> (<span class="text-red-500 font-bold"><?= $pendingRequests ?></span>)<?php elseif($page==='reports.php'): ?> (<span class="text-red-500 font-bold"><?= $pendingReports ?></span>)<?php endif; ?></a></li>
+            <?php endforeach; ?>
+          </ul>
+        </details>
+      </li>
+    <?php endforeach; ?>
+  </ul>
 </aside>

@@ -23,6 +23,14 @@ if ($action == 'get_class_courses') {
     exit;
 }
 
+if ($action == 'get_time_slots') {
+    $shift_id = $_GET['sh'] ?? 0;
+    $stmt = $pdo->prepare("SELECT * FROM time_slots WHERE ShiftID = ? ORDER BY PeriodNumber");
+    $stmt->execute([$shift_id]);
+    echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
+    exit;
+}
+
 if ($action == 'get_existing_timetable') {
     $sess = $_GET['sess'] ?? 0;
     $p = $_GET['p'] ?? 0;

@@ -12,45 +12,87 @@ $programsCount = $pdo->query("SELECT COUNT(*) FROM programs")->fetchColumn();
 $coursesCount = $pdo->query("SELECT COUNT(*) FROM courses")->fetchColumn();
 $pendingRequests = $pdo->query("SELECT COUNT(*) FROM requests WHERE Status = 'pending_admin'")->fetchColumn();
 $activeSubstitutes = $pdo->query("SELECT COUNT(*) FROM substitute_assignments WHERE Status = 'active'")->fetchColumn();
+
+// Active Session
+$activeSession      = $pdo->query("SELECT Title FROM academic_sessions WHERE IsActive = 1 ORDER BY SessionID DESC LIMIT 1")->fetchColumn();
+$activeSessionCount = $pdo->query("SELECT COUNT(*) FROM academic_sessions WHERE IsActive = 1")->fetchColumn();
+
+
 ?>
 <?php include '../includes/header.php'; ?>
-<div class="max-w-7xl mx-auto flex gap-6 mt-4">
+<div class="w-full px-2 md:px-8 mx-auto flex gap-6 mt-4">
     <!-- Sidebar -->
     <?php include '../includes/admin_sidebar.php'; ?>
     
     <!-- Main Content -->
     <div class="flex-1">
-        <h2 class="text-2xl font-bold text-maroon mb-4">Admin Dashboard</h2>
+        <h2 class="text-2xl font-bold text-maroon mb-4">Dashboard</h2>
         
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div class="bg-white p-4 shadow-md rounded border-t-4 border-maroon">
-                <h4 class="text-gray-500 font-bold">Total Teachers</h4>
-                <p class="text-3xl font-bold"><?php echo $teachersCount; ?></p>
+        <?php if ($activeSessionCount == 0): ?>
+            <div class="bg-red-100 text-red-700 border border-red-300 rounded p-3 mb-6 font-semibold">
+                ⚠ No active academic session is set. The public timetable and all views will show nothing until you activate a session in Manage Sessions.
             </div>
-            <div class="bg-white p-4 shadow-md rounded border-t-4 border-maroon">
-                <h4 class="text-gray-500 font-bold">Total Programs</h4>
-                <p class="text-3xl font-bold"><?php echo $programsCount; ?></p>
+        <?php else: ?>
+            <div class="bg-green-100 text-green-700 border border-green-300 rounded p-3 mb-6 font-semibold">
+                Active Session: <?php echo htmlspecialchars($activeSession); ?>
+                <?php if ($activeSessionCount > 1): ?>
+                    <span class="text-amber-600 ml-2">(Warning: <?php echo $activeSessionCount; ?> sessions are active, only one should be)</span>
+                <?php endif; ?>
             </div>
-            <div class="bg-white p-4 shadow-md rounded border-t-4 border-maroon">
-                <h4 class="text-gray-500 font-bold">Total Courses</h4>
-                <p class="text-3xl font-bold"><?php echo $coursesCount; ?></p>
+        <?php endif; ?>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <!-- Teachers Card -->
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
+                <h4 class="text-gray-500 font-bold mb-1">Total Teachers</h4>
+                <p class="text-3xl font-bold text-gray-800"><?php echo $teachersCount; ?></p>
             </div>
-            <div class="bg-white p-4 shadow-md rounded border-t-4 border-yellow-500">
-                <h4 class="text-gray-500 font-bold">Pending Requests</h4>
-                <p class="text-3xl font-bold"><?php echo $pendingRequests; ?></p>
+
+            <!-- Programs Card -->
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
+                <h4 class="text-gray-500 font-bold mb-1">Total Programs</h4>
+                <p class="text-3xl font-bold text-gray-800"><?php echo $programsCount; ?></p>
             </div>
-            <div class="bg-white p-4 shadow-md rounded border-t-4 border-blue-500">
-                <h4 class="text-gray-500 font-bold">Active Substitutes</h4>
-                <p class="text-3xl font-bold"><?php echo $activeSubstitutes; ?></p>
+
+            <!-- Courses Card -->
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
+                <h4 class="text-gray-500 font-bold mb-1">Total Courses</h4>
+                <p class="text-3xl font-bold text-gray-800"><?php echo $coursesCount; ?></p>
+            </div>
+
+            <!-- Pending Requests Card -->
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
+                <h4 class="text-gray-500 font-bold mb-1">Pending Requests</h4>
+                <p class="text-3xl font-bold text-gray-800"><?php echo $pendingRequests; ?></p>
+            </div>
+
+            <!-- Active Substitutes Card -->
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
+                <h4 class="text-gray-500 font-bold mb-1">Active Substitutes</h4>
+                <p class="text-3xl font-bold text-gray-800"><?php echo $activeSubstitutes; ?></p>
             </div>
         </div>
         
-        <!-- Workload Summary (Basic view) -->
-        <div class="bg-white p-4 shadow-md rounded">
-            <h3 class="text-lg font-bold border-b pb-2 mb-2">Workload Summary (Teachers near limit)</h3>
-            <!-- Placeholder for complex calculation logic shown on full workload page -->
-            <p class="text-sm text-gray-600">See <a href="workload.php" class="text-blue-500 underline">Workload Report</a> for detailed analysis.</p>
+        <!-- Quick Actions -->
+        <div class="bg-white border border-gray-200 rounded-lg p-6 mb-8 shadow-sm">
+            <h3 class="text-lg font-bold text-gray-800 mb-4">Quick Actions</h3>
+            <div class="flex flex-wrap gap-3">
+                <a href="timetable_manual.php" class="bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100 transition-colors px-4 py-2 rounded-md text-sm font-semibold">
+                    Generate Timetable
+                </a>
+                <a href="requests.php" class="bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100 transition-colors px-4 py-2 rounded-md text-sm font-semibold">
+                    Pending Requests (<?php echo $pendingRequests; ?>)
+                </a>
+                <a href="teachers.php" class="bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100 transition-colors px-4 py-2 rounded-md text-sm font-semibold">
+                    Manage Teachers
+                </a>
+                <a href="courses.php" class="bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100 transition-colors px-4 py-2 rounded-md text-sm font-semibold">
+                    Add Course
+                </a>
+            </div>
         </div>
+        
+
     </div>
 </div>
 

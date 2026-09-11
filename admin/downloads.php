@@ -53,7 +53,7 @@ $downloads = $pdo->query("SELECT * FROM downloads ORDER BY CreatedAt DESC")->fet
 
 ?>
 <?php include '../includes/header.php'; ?>
-<div class="max-w-7xl mx-auto flex gap-6 mt-4 pb-12">
+<div class="w-full px-2 md:px-8 mx-auto flex gap-6 mt-4 pb-12">
     <?php include '../includes/admin_sidebar.php'; ?>
     
     <div class="flex-1 min-w-0">

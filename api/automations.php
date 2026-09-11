@@ -38,6 +38,4 @@ foreach($expiredSubs as $sub) {
     $msgSub = "Your substitution assignment has ended.";
     $pdo->prepare("INSERT INTO notifications (ScopeType, TeacherID, Message) VALUES ('teacher', ?, ?)")->execute([$sub['SubstituteTeacherID'], $msgSub]);
 }
-
-echo "Automations completed successfully.";
 ?>
