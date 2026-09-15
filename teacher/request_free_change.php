@@ -16,7 +16,7 @@ $stmt = $pdo->prepare("SELECT t.*, ts.PeriodNumber, ts.StartTime, c.Name as Cour
                        JOIN time_slots ts ON t.SlotID = ts.SlotID
                        LEFT JOIN courses c ON t.CourseID = c.CourseID
                        LEFT JOIN rooms r ON t.RoomID = r.RoomID
-                       WHERE t.TeacherID = ? AND t.IsFree = 0 ORDER BY t.ShiftID, FIELD(t.Day, 'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'), ts.PeriodNumber");
+                       WHERE t.TeacherID = ? AND t.IsFree = 0 AND t.Status = 'published' ORDER BY t.ShiftID, FIELD(t.Day, 'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'), ts.PeriodNumber");
 $stmt->execute([$teacherId]);
 $teachingSlots = $stmt->fetchAll();
 
@@ -26,12 +26,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($currentTT && $targetTT) {
         // Validate current teaching slot belongs to teacher
-        $curr = $pdo->prepare("SELECT * FROM timetable WHERE TimetableID = ? AND TeacherID = ? AND IsFree = 0");
+        $curr = $pdo->prepare("SELECT * FROM timetable WHERE TimetableID = ? AND TeacherID = ? AND IsFree = 0 AND Status = 'published'");
         $curr->execute([$currentTT, $teacherId]);
         $cData = $curr->fetch();
         
         // Validate target is actually a free slot for the SAME class
-        $targ = $pdo->prepare("SELECT * FROM timetable WHERE TimetableID = ? AND IsFree = 1");
+        $targ = $pdo->prepare("SELECT * FROM timetable WHERE TimetableID = ? AND IsFree = 1 AND Status = 'published'");
         $targ->execute([$targetTT]);
         $tData = $targ->fetch();
 

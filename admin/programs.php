@@ -165,13 +165,13 @@ $programs = $pdo->query("SELECT * FROM programs")->fetchAll();
 
 <!-- Edit Modal -->
 <div id="editModal" class="fixed inset-0 bg-black/50 flex justify-center items-center z-[100]" style="display: none;">
-    <div class="bg-white p-6 rounded-xl shadow-xl w-full max-w-[500px] border border-gray-100">
+    <div class="bg-white p-6 rounded-xl shadow-xl w-full max-w-[850px] border border-gray-100">
         <h3 class="font-bold text-lg mb-4 text-[#111827]">Edit Program</h3>
         <p class="text-xs text-gray-500 mb-4 bg-gray-50 p-2 border border-gray-200 rounded">Note: Changing the Period Unit or Total Duration will NOT automatically rewrite existing mapped semesters. Only use this to fix textual mistakes.</p>
         <form method="POST" class="flex flex-col gap-4">
             <input type="hidden" name="id" id="edit_id">
             
-            <div class="grid grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-3">
                 <div>
                     <label class="block text-xs font-bold text-gray-600 mb-1">Program Name</label>
                     <input type="text" name="name" id="edit_name" required class="w-full border border-gray-300 p-2.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#a60b26]">
@@ -180,9 +180,6 @@ $programs = $pdo->query("SELECT * FROM programs")->fetchAll();
                     <label class="block text-xs font-bold text-gray-600 mb-1">Short Code</label>
                     <input type="text" name="short_code" id="edit_scode" required class="w-full border border-gray-300 p-2.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#a60b26]">
                 </div>
-            </div>
-            
-            <div class="grid grid-cols-3 gap-4">
                 <div>
                     <label class="block text-xs font-bold text-gray-600 mb-1">Unit</label>
                     <select name="unit" id="edit_unit" class="w-full border border-gray-300 p-2.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#a60b26]">
@@ -201,7 +198,7 @@ $programs = $pdo->query("SELECT * FROM programs")->fetchAll();
                 </div>
             </div>
             
-            <div class="flex justify-end gap-2 mt-2 pt-4 border-t border-gray-100">
+            <div class="flex justify-end gap-2 mt-4 pt-4 border-t border-gray-100">
                 <button type="button" onclick="document.getElementById('editModal').style.display='none'" class="bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold px-5 py-2.5 rounded-lg transition-colors">Cancel</button>
                 <button type="submit" name="edit" class="bg-[#a60b26] hover:bg-[#8a0a20] text-white font-bold px-5 py-2.5 rounded-lg transition-colors">Save Changes</button>
             </div>

@@ -9,9 +9,19 @@ if($_SERVER['REQUEST_METHOD'] === 'POST') {
         $st = $_POST['st']; $et = $_POST['et'];
         $fst = $_POST['fst']; $fet = $_POST['fet'];
         
-        if (strtotime($et) <= strtotime($st)) {
+        $st_time = strtotime($st);
+        $et_time = strtotime($et);
+        $fst_time = strtotime($fst);
+        $fet_time = strtotime($fet);
+        
+        $midnight = strtotime('00:00:00');
+        
+        $invalid_regular = ($st_time !== $midnight || $et_time !== $midnight) && ($et_time <= $st_time);
+        $invalid_friday  = ($fst_time !== $midnight || $fet_time !== $midnight) && ($fet_time <= $fst_time);
+        
+        if ($invalid_regular) {
             $message = "Error: Regular End Time must be strictly after Start Time.";
-        } elseif (strtotime($fet) <= strtotime($fst)) {
+        } elseif ($invalid_friday) {
             $message = "Error: Friday End Time must be strictly after Start Time.";
         } else {
             $pdo->prepare("UPDATE time_slots SET StartTime=?, EndTime=?, FridayStartTime=?, FridayEndTime=? WHERE SlotID=?")
@@ -59,7 +69,7 @@ foreach($slots as $s) {
         </div>
 
         <?php if($message): ?>
-            <div class="bg-green-100 text-green-800 p-3 rounded-lg mb-6 font-semibold text-sm border border-green-200">
+            <div class="<?php echo strpos($message, 'Error') !== false ? 'bg-red-100 text-red-800 border-red-200' : 'bg-green-100 text-green-800 border-green-200'; ?> p-3 rounded-lg mb-6 font-semibold text-sm border">
                 <?php echo $message; ?>
             </div>
         <?php endif; ?>

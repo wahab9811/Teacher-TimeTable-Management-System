@@ -10,6 +10,7 @@ require_once __DIR__ . '/../config/db.php';
 $teachersCount = $pdo->query("SELECT COUNT(*) FROM users WHERE Role = 'teacher'")->fetchColumn();
 $programsCount = $pdo->query("SELECT COUNT(*) FROM programs")->fetchColumn();
 $coursesCount = $pdo->query("SELECT COUNT(*) FROM courses")->fetchColumn();
+$roomsCount = $pdo->query("SELECT COUNT(*) FROM rooms WHERE IsActive = 1")->fetchColumn();
 $pendingRequests = $pdo->query("SELECT COUNT(*) FROM requests WHERE Status = 'pending_admin'")->fetchColumn();
 $activeSubstitutes = $pdo->query("SELECT COUNT(*) FROM substitute_assignments WHERE Status = 'active'")->fetchColumn();
 
@@ -33,10 +34,10 @@ $activeSessionCount = $pdo->query("SELECT COUNT(*) FROM academic_sessions WHERE 
                 ⚠ No active academic session is set. The public timetable and all views will show nothing until you activate a session in Manage Sessions.
             </div>
         <?php else: ?>
-            <div class="bg-green-100 text-green-700 border border-green-300 rounded p-3 mb-6 font-semibold">
+            <div class="text-gray-700 mb-6 font-semibold">
                 Active Session: <?php echo htmlspecialchars($activeSession); ?>
                 <?php if ($activeSessionCount > 1): ?>
-                    <span class="text-amber-600 ml-2">(Warning: <?php echo $activeSessionCount; ?> sessions are active, only one should be)</span>
+                    <span class="text-red-600 text-sm ml-2">(Warning: <?php echo $activeSessionCount; ?> sessions are active, only one should be)</span>
                 <?php endif; ?>
             </div>
         <?php endif; ?>
@@ -60,6 +61,12 @@ $activeSessionCount = $pdo->query("SELECT COUNT(*) FROM academic_sessions WHERE 
                 <p class="text-3xl font-bold text-gray-800"><?php echo $coursesCount; ?></p>
             </div>
 
+            <!-- Rooms Card -->
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
+                <h4 class="text-gray-500 font-bold mb-1">Total Rooms & Labs</h4>
+                <p class="text-3xl font-bold text-gray-800"><?php echo $roomsCount; ?></p>
+            </div>
+
             <!-- Pending Requests Card -->
             <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
                 <h4 class="text-gray-500 font-bold mb-1">Pending Requests</h4>
@@ -80,14 +87,14 @@ $activeSessionCount = $pdo->query("SELECT COUNT(*) FROM academic_sessions WHERE 
                 <a href="timetable_manual.php" class="bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100 transition-colors px-4 py-2 rounded-md text-sm font-semibold">
                     Generate Timetable
                 </a>
-                <a href="requests.php" class="bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100 transition-colors px-4 py-2 rounded-md text-sm font-semibold">
-                    Pending Requests (<?php echo $pendingRequests; ?>)
-                </a>
                 <a href="teachers.php" class="bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100 transition-colors px-4 py-2 rounded-md text-sm font-semibold">
                     Manage Teachers
                 </a>
                 <a href="courses.php" class="bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100 transition-colors px-4 py-2 rounded-md text-sm font-semibold">
                     Add Course
+                </a>
+                <a href="announcements.php" class="bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100 transition-colors px-4 py-2 rounded-md text-sm font-semibold">
+                    Announcements
                 </a>
             </div>
         </div>
@@ -95,4 +102,3 @@ $activeSessionCount = $pdo->query("SELECT COUNT(*) FROM academic_sessions WHERE 
 
     </div>
 </div>
-

@@ -24,24 +24,43 @@ $thirtyDaysFromNow = date('Y-m-d', strtotime('+30 days'));
 $currentMonth = date('Y-m');
 
 foreach ($events as $event) {
-    if(!isset($calendarData[$event['Date']])) {
-        $calendarData[$event['Date']] = [];
+    // Generate dates array
+    $dates = [$event['Date']];
+    if (!empty($event['EndDate']) && $event['EndDate'] !== $event['Date']) {
+        $start = new DateTime($event['Date']);
+        $end = new DateTime($event['EndDate']);
+        $end->modify('+1 day'); // include end date
+        $period = new DatePeriod($start, new DateInterval('P1D'), $end);
+        $dates = [];
+        foreach($period as $dt) {
+            $dates[] = $dt->format('Y-m-d');
+        }
     }
-    $calendarData[$event['Date']][] = [
-        'title' => $event['Title'],
-        'category' => $event['Category'],
-        'time' => $event['EventTime'],
-        'desc' => $event['Description'],
-        'image' => $event['ImagePath']
-    ];
+
+    foreach($dates as $d) {
+        if(!isset($calendarData[$d])) {
+            $calendarData[$d] = [];
+        }
+        $calendarData[$d][] = [
+            'title' => $event['Title'],
+            'category' => $event['Category'],
+            'time' => $event['EventTime'],
+            'desc' => $event['Description'],
+            'image' => $event['ImagePath'],
+            'original_start' => $event['Date'],
+            'original_end' => $event['EndDate']
+        ];
+    }
+    
+    $latestDate = !empty($event['EndDate']) ? $event['EndDate'] : $event['Date'];
     
     // Pick upcoming events for right sidebar (max 4)
-    if($event['Date'] >= $todayDt && count($upcomingEvents) < 4) {
+    if($latestDate >= $todayDt && count($upcomingEvents) < 4) {
         $upcomingEvents[] = $event;
     }
     
     // Pick upcoming events for table (next 30 days)
-    if($event['Date'] >= $todayDt && $event['Date'] <= $thirtyDaysFromNow) {
+    if($latestDate >= $todayDt && $event['Date'] <= $thirtyDaysFromNow) {
         $upcoming30Days[] = $event;
     }
     
@@ -179,6 +198,13 @@ $calendarJson = json_encode($calendarData);
                         
                         $monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
                         $fullDate = $monthNames[date('n', $d) - 1] . ' ' . date('j', $d) . ', ' . date('Y', $d);
+                        $shortDate = date('D, M d, Y', $d);
+                        
+                        if(!empty($ev['EndDate']) && $ev['EndDate'] !== $ev['Date']) {
+                            $ed = strtotime($ev['EndDate']);
+                            $fullDate .= ' - ' . $monthNames[date('n', $ed) - 1] . ' ' . date('j', $ed) . ', ' . date('Y', $ed);
+                            $shortDate .= ' - ' . date('M d', $ed);
+                        }
                         $evObj = [
                             'title' => $ev['Title'],
                             'type' => $ev['Category'],
@@ -201,8 +227,8 @@ $calendarJson = json_encode($calendarData);
                         <div class="flex-1 min-w-0">
                             <h4 class="font-bold text-[13px] text-gray-900 leading-tight truncate group-hover:text-maroon transition-colors"><?php echo htmlspecialchars($ev['Title']); ?></h4>
                             <div class="flex justify-between items-end mt-1.5">
-                                <span class="text-[11px] text-gray-500 font-medium"><?php echo date('D, M d, Y', $d); ?></span>
-                                <span class="text-[11px] font-bold text-gray-600 bg-gray-50 px-1.5 py-0.5 rounded"><?php echo htmlspecialchars($ev['EventTime']); ?></span>
+                                <span class="text-[11px] text-gray-500 font-medium whitespace-nowrap overflow-hidden text-ellipsis mr-2"><?php echo $shortDate; ?></span>
+                                <span class="text-[11px] font-bold text-gray-600 bg-gray-50 px-1.5 py-0.5 rounded whitespace-nowrap shrink-0"><?php echo htmlspecialchars($ev['EventTime']); ?></span>
                             </div>
                         </div>
                     </div>
@@ -223,10 +249,10 @@ $calendarJson = json_encode($calendarData);
 
 <!-- Modal -->
 <div id="eventModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] hidden items-center justify-center p-4 transition-opacity opacity-0 duration-300">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden transform scale-95 transition-transform duration-300 relative" id="eventModalContent">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden transform scale-95 transition-transform duration-300 relative" id="eventModalContent">
         <div class="h-2 w-full" id="modalTopBar"></div>
-        <div id="modalImageContainer" class="relative group hidden">
-            <img id="modalImage" src="" class="w-full h-64 object-cover" alt="Event Image">
+        <div id="modalImageContainer" class="relative group hidden bg-gray-50 md:h-[300px]">
+            <img id="modalImage" src="" class="w-full h-56 md:h-full object-contain" alt="Event Image">
             <button id="modalPrevBtn" class="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/80 text-white rounded-full p-2 hidden transition-colors" onclick="prevModalImage()">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
             </button>
@@ -239,14 +265,14 @@ $calendarJson = json_encode($calendarData);
             <div class="flex justify-between items-start mb-4">
                 <div>
                     <span id="modalTypeBadge" class="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md mb-2 inline-block"></span>
-                    <h3 class="text-xl font-bold text-gray-900 leading-tight" id="modalTitle"></h3>
-                    <p class="text-[13px] text-gray-500 font-medium mt-1" id="modalDate"></p>
+                    <h3 class="text-2xl font-bold text-gray-900 leading-tight" id="modalTitle"></h3>
+                    <p class="text-[14px] text-gray-500 font-medium mt-1.5" id="modalDate"></p>
                 </div>
-                <button onclick="closeModal()" class="text-gray-400 hover:text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg p-1.5 transition-colors">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                <button onclick="closeModal()" class="text-gray-400 hover:text-gray-700 bg-gray-50 hover:bg-gray-200 rounded-lg p-2 transition-colors ml-4">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
             </div>
-            <div class="text-[14.5px] text-gray-600 bg-gray-50/50 border border-gray-100 p-4 rounded-xl whitespace-pre-wrap max-h-48 overflow-y-auto" id="modalDesc"></div>
+            <div class="text-[15px] leading-relaxed text-gray-700 bg-gray-50/80 border border-gray-100 p-5 rounded-xl whitespace-pre-wrap max-h-72 overflow-y-auto" id="modalDesc"></div>
         </div>
     </div>
 </div>
@@ -333,7 +359,15 @@ function renderCalendar() {
                     row.className = 'flex flex-col md:flex-row p-4 border-b border-r border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer gap-4';
                     
                     const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-                    let evObj = {...ev, fullDate: `${monthNames[parseInt(evM)-1]} ${evD}, ${evY}`};
+                    
+                    let originStart = new Date(ev.original_start);
+                    let fullDateText = `${monthNames[originStart.getMonth()]} ${originStart.getDate()}, ${originStart.getFullYear()}`;
+                    if(ev.original_end && ev.original_end !== ev.original_start) {
+                        let originEnd = new Date(ev.original_end);
+                        fullDateText += ` - ${monthNames[originEnd.getMonth()]} ${originEnd.getDate()}, ${originEnd.getFullYear()}`;
+                    }
+                    
+                    let evObj = {...ev, fullDate: fullDateText};
                     row.onclick = () => openModal(evObj);
                     
                     let dateBox = document.createElement('div');
@@ -410,7 +444,14 @@ function renderCalendar() {
                     let badge = document.createElement('div');
                     let conf = categoryConfig[cat];
                     const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-                    let evObj = {...ev, fullDate: `${monthNames[cMonth]} ${cD}, ${cYear}`};
+                    
+                    let originStart = new Date(ev.original_start);
+                    let fullDateText = `${monthNames[originStart.getMonth()]} ${originStart.getDate()}, ${originStart.getFullYear()}`;
+                    if(ev.original_end && ev.original_end !== ev.original_start) {
+                        let originEnd = new Date(ev.original_end);
+                        fullDateText += ` - ${monthNames[originEnd.getMonth()]} ${originEnd.getDate()}, ${originEnd.getFullYear()}`;
+                    }
+                    let evObj = {...ev, fullDate: fullDateText};
                     
                     if (conf.isPill) {
                         badge.className = `text-[11px] font-bold px-2 py-1.5 rounded shadow-sm transform hover:scale-[1.02] cursor-pointer transition-transform ${conf.border}`;
@@ -472,7 +513,13 @@ function renderCalendar() {
                 let conf = categoryConfig[cat];
                 
                 const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-                let evObj = {...ev, fullDate: `${monthNames[month]} ${d}, ${year}`};
+                let originStart = new Date(ev.original_start);
+                let fullDateText = `${monthNames[originStart.getMonth()]} ${originStart.getDate()}, ${originStart.getFullYear()}`;
+                if(ev.original_end && ev.original_end !== ev.original_start) {
+                    let originEnd = new Date(ev.original_end);
+                    fullDateText += ` - ${monthNames[originEnd.getMonth()]} ${originEnd.getDate()}, ${originEnd.getFullYear()}`;
+                }
+                let evObj = {...ev, fullDate: fullDateText};
                 
                 if (conf.isPill) {
                     // Pill Style (like Mid Term Exams, Sports Gala)
@@ -554,8 +601,8 @@ function openModal(ev) {
     document.getElementById('modalTopBar').className = `h-2 w-full ${isRed ? 'bg-red-600' : 'bg-[#1e1e1e]'}`;
     
     const badge = document.getElementById('modalTypeBadge');
-    badge.innerText = ev.category;
-    badge.className = `px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md mb-2 inline-block ${isRed ? 'bg-red-50 text-red-600' : 'bg-gray-100 text-gray-700'}`;
+    badge.innerText = ev.category || 'Event';
+    badge.className = `px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md mb-3 inline-block ${isRed ? 'bg-red-50 text-red-600' : 'bg-gray-100 text-gray-700'}`;
     
     document.getElementById('modalTitle').innerText = ev.title;
     document.getElementById('modalDate').innerText = ev.fullDate + (ev.time ? ' • ' + ev.time : '');

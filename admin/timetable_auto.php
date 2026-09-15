@@ -12,22 +12,6 @@ $previewData = null;
 $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 $periods = []; 
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['clear_timetable'])) {
-    $sessID = $_POST['session_id'];
-    $pID = $_POST['program_id'];
-    $dID = $_POST['department_id'];
-    $sID = $_POST['semester_id'];
-    $shID = $_POST['shift_id'];
-    $secID = $_POST['section_id'] !== '' ? $_POST['section_id'] : null;
-
-    try {
-        $stmtDel = $pdo->prepare("DELETE FROM timetable WHERE ProgramID=? AND DepartmentID=? AND SemesterID=? AND ShiftID=? AND SessionID=? AND SectionID <=> ?");
-        $stmtDel->execute([$pID, $dID, $sID, $shID, $sessID, $secID]);
-        $message = "Timetable successfully cleared for the selected configuration.";
-    } catch(Exception $e) {
-        $error = "Error clearing timetable: " . $e->getMessage();
-    }
-}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_timetable'])) {
     $sessID = $_POST['session_id'];
@@ -37,6 +21,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_timetable'])
     $shID = $_POST['shift_id'];
     $secID = $_POST['section_id'] !== '' ? $_POST['section_id'] : null;
     
+    // Fetch target texts to respect room assigning priority
+    $progName = $pdo->prepare("SELECT Name FROM programs WHERE ProgramID = ?");
+    $progName->execute([$pID]);
+    $ttProgName = $progName->fetchColumn() ?: '';
+    
+    $ttDeptName = '';
+    if($dID) {
+        $deptQ = $pdo->prepare("SELECT Name FROM departments WHERE DepartmentID = ?");
+        $deptQ->execute([$dID]);
+        $ttDeptName = $deptQ->fetchColumn() ?: '';
+    }
+    
+    $assignTargetFull = $ttDeptName ? $ttProgName . ' - ' . $ttDeptName : $ttProgName;
+    $assignTargetProg = $ttProgName;
+
     // 1. Fetch courses for this specific class
     if ($secID) {
         $stmtC = $pdo->prepare("SELECT * FROM courses WHERE ProgramID=? AND DepartmentID=? AND SemesterID=? AND ShiftID=? AND (SectionID=? OR SectionID IS NULL)");
@@ -66,7 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_timetable'])
         $lectures = [];
         
         foreach($courses as $c) {
-            if ($c['RoomType'] == 'Lab') {
+            if (strpos($c['RoomType'], 'Lab') !== false) {
                 // Lab needs placement in Lab rooms (Consecutive if > 1 credit hour)
                 $labs[] = $c;
             } else {
@@ -202,10 +201,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_timetable'])
                                     $slotsToCheck[] = $slotMap[$periods[$startIdx + $k]];
                                 }
                                 $slotMarks = implode(',', array_fill(0, count($slotsToCheck), '?'));
-                                $qRoom = $pdo->prepare("SELECT RoomID FROM rooms WHERE Type = 'Lab' AND IsActive = 1 AND RoomID NOT IN (
-                                    SELECT RoomID FROM timetable WHERE Day = ? AND SlotID IN ($slotMarks) AND RoomID IS NOT NULL
-                                ) LIMIT 1");
-                                $qParams = array_merge([$day], $slotsToCheck);
+                                $qRoom = $pdo->prepare("SELECT RoomID FROM rooms WHERE Type = ? AND IsActive = 1 
+                                    AND (AssignFor = ? OR AssignFor = ? OR AssignFor IS NULL OR AssignFor = '') 
+                                    AND RoomID NOT IN (
+                                        SELECT RoomID FROM timetable WHERE Day = ? AND SlotID IN ($slotMarks) AND RoomID IS NOT NULL
+                                    ) 
+                                    ORDER BY CASE WHEN AssignFor = ? THEN 1 WHEN AssignFor = ? THEN 2 ELSE 3 END ASC
+                                    LIMIT 1");
+                                $qParams = array_merge([$lab['RoomType'], $assignTargetFull, $assignTargetProg, $day], $slotsToCheck, [$assignTargetFull, $assignTargetProg]);
                                 $qRoom->execute($qParams);
                                 $selectedRoom = $qRoom->fetchColumn() ?: null;
 
@@ -460,10 +463,8 @@ $teachers = $pdo->query("SELECT UserID, Name FROM users WHERE Role='teacher'")->
                             <?php foreach($classroomsList as $rm): echo "<option value='{$rm['RoomID']}'>".htmlspecialchars($rm['Name'])."</option>"; endforeach; ?>
                         </select>
                     </div>
-                    <div class="md:col-span-2 flex justify-end gap-3 z-10">
-                        <button type="submit" name="clear_timetable" class="bg-white border-2 border-red-200 hover:bg-red-50 text-red-600 px-6 py-3 rounded-lg font-bold shadow-sm transition-all text-sm h-[42px] leading-none flex items-center" onclick="return confirm('Are you sure you want to clear/delete the timetable footprint for this specific configuration? Note: Pending requests and active substitutes linked to these periods will also be discarded.')">
-                            Clear Timetable
-                        </button>         
+                    <div class="flex items-end justify-start gap-3 z-10">
+
                         <button type="submit" name="generate_timetable" class="bg-[#a60b26] hover:bg-red-800 hover:shadow-lg text-white px-8 py-3 rounded-lg font-bold shadow-md transition-all h-[42px] leading-none flex items-center">
                             Auto Generate
                         </button>
@@ -565,9 +566,14 @@ function loadSectionsForTT() {
         .then(r => r.json())
         .then(data => {
             data.forEach(sec => {
-                let opt = document.createElement('option');
-                opt.value = sec.SectionID; opt.textContent = 'Section ' + sec.Name;
-                secSelect.appendChild(opt);
+                let nameLow = sec.Name.toLowerCase();
+                if(nameLow === 'none' || nameLow === 'main' || nameLow === 'general') {
+                    secSelect.options[0].value = sec.SectionID;
+                } else {
+                    let opt = document.createElement('option');
+                    opt.value = sec.SectionID; opt.textContent = 'Section ' + sec.Name;
+                    secSelect.appendChild(opt);
+                }
             });
             if([...secSelect.options].some(o => o.value === currentVal)) {
                 secSelect.value = currentVal;

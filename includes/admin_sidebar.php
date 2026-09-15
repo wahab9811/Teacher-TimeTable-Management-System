@@ -12,8 +12,8 @@ $current_page = basename($_SERVER['PHP_SELF']);
 $menuGroups = [
   'Setup'      => ['programs.php'=>'Programs','departments.php'=>'Departments','semesters.php'=>'Semesters','sections.php'=>'Sections','courses.php'=>'Courses','rooms.php'=>'Rooms','shifts.php'=>'Shifts & Time Slots'],
   'People'     => ['teachers.php'=>'Teachers','designations.php'=>'Manage Designations','workload.php'=>'Teacher Workload'],
-  'Timetable'  => ['timetable_manual.php'=>'Manual Timetable','timetable_auto.php'=>'Auto Timetable','timetable_viewer.php'=>'Timetable Viewer'],
-  'Operations' => ['requests.php'=>'Requests','substitutes.php'=>'Substitutes','reports.php'=>'Student Reports'],
+  'Timetable'  => ['timetable_manual.php'=>'Manual Timetable','timetable_auto.php'=>'Auto Timetable','timetable_viewer.php'=>'Manage Timetables'],
+  'Operations' => ['import_data.php'=>'Bulk Import Data', 'requests.php'=>'Requests','substitutes.php'=>'Substitutes','reports.php'=>'Student Reports'],
   'Content'    => ['announcements.php'=>'Announcements','notices.php'=>'Notice Board','calendar_manage.php'=>'Calendar Edit','downloads.php'=>'Manage Downloads'],
 ];
 ?>

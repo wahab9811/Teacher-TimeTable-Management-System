@@ -156,7 +156,7 @@ function checkCreditHoursDistribution($pdo, $data, $ignoreID) {
     
     $course = $pdo->prepare("SELECT RoomType FROM courses WHERE CourseID = ?");
     $course->execute([$data['CourseID']]);
-    if ($course->fetchColumn() == 'Lab') return true; // Skip single day limit for labs
+    if (strpos($course->fetchColumn(), 'Lab') !== false) return true; // Skip single day limit for labs
     
     $sess = $data['SessionID'] ?? null;
     $sql = "SELECT COUNT(*) FROM timetable WHERE CourseID = ? AND Day = ? AND SessionID <=> ?";

@@ -254,7 +254,7 @@ $depts = $pdo->query("
                                         "specialization" => $t["Specialization"], "joining_date" => $t["JoiningDate"],
                                         "employment_type" => $t["EmploymentType"], "experience" => $t["Experience"],
                                         "account_status" => $t["AccountStatus"], "available_days" => $t["AvailableDays"]
-                                    ]); ?>)' class="text-blue-500 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-md transition font-bold text-xs">Profile</button>
+                                    ]); ?>)' class="text-blue-500 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-md transition font-bold text-xs">Edit</button>
                                     <form method="POST" onsubmit="return confirm('Remove this faculty member?');" class="inline m-0">
                                         <input type="hidden" name="action" value="delete">
                                         <input type="hidden" name="id" value="<?php echo $t['UserID']; ?>">
@@ -299,7 +299,7 @@ $depts = $pdo->query("
 <div id="editModal" class="fixed inset-0 bg-black/60 flex justify-center items-center z-[100] backdrop-blur-sm" style="display: none;">
     <div class="bg-white p-6 rounded-xl shadow-2xl w-full max-w-[800px] border border-gray-100 max-h-[90vh] overflow-y-auto">
         <div class="flex justify-between items-center mb-6">
-            <h3 class="font-black text-xl text-[#111827]">Edit Professional Profile</h3>
+            <h3 class="font-bold text-xl text-[#111827]">Edit Professional Profile</h3>
             <button type="button" onclick="document.getElementById('editModal').style.display='none'" class="text-gray-400 hover:text-gray-600">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
@@ -311,7 +311,7 @@ $depts = $pdo->query("
             
             <!-- Basic Section -->
             <div class="bg-gray-50 border border-gray-200 p-4 rounded-lg">
-                <h4 class="font-bold text-gray-800 border-b border-gray-200 pb-2 mb-4 text-sm uppercase tracking-wider">Access Info</h4>
+                <h4 class="font-bold text-gray-800 border-b border-gray-200 pb-2 mb-4 text-base">Access Info</h4>
                 <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
                     <div class="md:col-span-4">
                         <label class="block text-xs font-bold text-gray-500">Name</label>
@@ -337,7 +337,7 @@ $depts = $pdo->query("
 
             <!-- Professional Section -->
             <div>
-                <h4 class="font-bold text-gray-800 border-b border-gray-200 pb-2 mb-4 text-sm uppercase tracking-wider">Academic & Professional</h4>
+                <h4 class="font-bold text-gray-800 border-b border-gray-200 pb-2 mb-4 text-base">Academic & Professional</h4>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                         <label class="block text-xs font-bold text-gray-500">Employee ID</label>
@@ -378,6 +378,7 @@ $depts = $pdo->query("
                             <option value="Permanent">Permanent</option>
                             <option value="Contract">Contract</option>
                             <option value="Visiting">Visiting</option>
+                            <option value="CTI">CTI</option>
                         </select>
                     </div>
                     <div class="md:col-span-2">

@@ -36,8 +36,9 @@ if($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         
         if($valid) {
-            $pdo->prepare("INSERT INTO courses (Name, ProgramID, DepartmentID, SemesterID, ShiftID, SectionID, TeacherID, CreditHours, RoomType) VALUES (?,?,?,?,?,?,?,?,?)")
-                ->execute([$_POST['name'], $_POST['pid'], $_POST['did'], $_POST['sid'], $shift, $secid, $_POST['tid'], $_POST['cr'], $_POST['type']]);
+            $code = empty($_POST['code']) ? null : $_POST['code'];
+            $pdo->prepare("INSERT INTO courses (CourseCode, Name, ProgramID, DepartmentID, SemesterID, ShiftID, SectionID, TeacherID, CreditHours, RoomType) VALUES (?,?,?,?,?,?,?,?,?,?)")
+                ->execute([$code, $_POST['name'], $_POST['pid'], $_POST['did'], $_POST['sid'], $shift, $secid, $_POST['tid'], $_POST['cr'], $_POST['type']]);
             $message="Course mapped successfully.";
         } else {
             $isError = true;
@@ -75,8 +76,8 @@ if($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
             if($valid) {
-                $pdo->prepare("INSERT INTO courses (Name, ProgramID, DepartmentID, SemesterID, ShiftID, SectionID, TeacherID, CreditHours, RoomType) VALUES (?,?,?,?,?,?,?,?,?)")
-                    ->execute([$src['Name'], $src['ProgramID'], $src['DepartmentID'], $src['SemesterID'], $newShift, $newSecid, $newTeacher, $src['CreditHours'], $src['RoomType']]);
+                $pdo->prepare("INSERT INTO courses (CourseCode, Name, ProgramID, DepartmentID, SemesterID, ShiftID, SectionID, TeacherID, CreditHours, RoomType) VALUES (?,?,?,?,?,?,?,?,?,?)")
+                    ->execute([$src['CourseCode'], $src['Name'], $src['ProgramID'], $src['DepartmentID'], $src['SemesterID'], $newShift, $newSecid, $newTeacher, $src['CreditHours'], $src['RoomType']]);
                 $message="Course cloned successfully for the selected new shift.";
             }
         }
@@ -111,8 +112,9 @@ if($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         
         if($valid) {
-            $pdo->prepare("UPDATE courses SET Name=?, ProgramID=?, DepartmentID=?, SemesterID=?, ShiftID=?, SectionID=?, TeacherID=?, CreditHours=?, RoomType=? WHERE CourseID=?")
-                ->execute([$_POST['name'], $_POST['pid'], $_POST['did'], $_POST['sid'], $shift, $secid, $_POST['tid'], $_POST['cr'], $_POST['type'], $_POST['id']]);
+            $code = empty($_POST['code']) ? null : $_POST['code'];
+            $pdo->prepare("UPDATE courses SET CourseCode=?, Name=?, ProgramID=?, DepartmentID=?, SemesterID=?, ShiftID=?, SectionID=?, TeacherID=?, CreditHours=?, RoomType=? WHERE CourseID=?")
+                ->execute([$code, $_POST['name'], $_POST['pid'], $_POST['did'], $_POST['sid'], $shift, $secid, $_POST['tid'], $_POST['cr'], $_POST['type'], $_POST['id']]);
             $message="Course updated successfully.";
         } else {
             $isError = true;
@@ -164,7 +166,11 @@ $shifts = $pdo->query("SELECT * FROM shifts")->fetchAll();
             <h3 class="font-black mb-4 text-[#111827] uppercase tracking-wide border-b border-gray-200 pb-2">Map a New Course</h3>
             <form method="POST" class="flex flex-col gap-4">
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div class="lg:col-span-1">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-600 mb-1">Course Code (Optional)</label>
+                        <input type="text" name="code" placeholder="e.g. GE-161" class="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-1 focus:ring-maroon focus:outline-none">
+                    </div>
+                    <div>
                         <label class="block text-xs font-bold text-gray-600 mb-1">Course Name</label>
                         <input type="text" name="name" placeholder="e.g. Intro to Computer Science" required class="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-1 focus:ring-maroon focus:outline-none">
                     </div>
@@ -189,44 +195,45 @@ $shifts = $pdo->query("SELECT * FROM shifts")->fetchAll();
                             <?php foreach($sems as $s): echo "<option value='{$s['SemesterID']}' data-prog='{$s['ProgramID']}'>{$s['Label']}</option>"; endforeach; ?>
                         </select>
                     </div>
-                </div>
-                
-                <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
-                    <div class="md:col-span-2">
+                    <div>
                         <label class="block text-xs font-bold text-gray-600 mb-1">Shift</label>
                         <select name="shift" id="add_shift" required class="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-1 focus:ring-maroon focus:outline-none">
                             <option value="">Select...</option>
                             <?php foreach($shifts as $sh): echo "<option value='{$sh['ShiftID']}'>{$sh['Name']}</option>"; endforeach; ?>
                         </select>
                     </div>
-                    <div class="md:col-span-3">
+                    <div>
                         <label class="block text-xs font-bold text-gray-600 mb-1">Section</label>
                         <select name="secid" id="add_secid" class="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-1 focus:ring-maroon focus:outline-none">
                             <option value="">General (No Section)</option>
                         </select>
                     </div>
-                    <div class="md:col-span-3">
+                    <div>
                         <label class="block text-xs font-bold text-gray-600 mb-1">Assigned Teacher</label>
                         <select name="tid" required class="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-1 focus:ring-maroon focus:outline-none">
                             <option value="">Select Teacher...</option>
                             <?php foreach($teachers as $t): echo "<option value='{$t['UserID']}'>{$t['Name']}</option>"; endforeach; ?>
                         </select>
                     </div>
-                    <div class="md:col-span-2">
-                        <label class="block text-xs font-bold text-gray-600 mb-1" title="For BS: Credit Hours. For Inter: Weekly Periods. Max 6 allowed per course based on shift capabilities.">Lectures (Cr.Hrs/Periods)</label>
-                        <input type="number" name="cr" value="3" required min="1" max="6" class="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-1 focus:ring-maroon focus:outline-none">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-600 mb-1" title="For BS: Credit Hours. For Inter: Weekly Periods. Max 6 allowed per course based on shift capabilities.">Weekly Periods</label>
+                        <input type="number" name="cr" placeholder="e.g. 3" required min="1" max="6" class="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-1 focus:ring-maroon focus:outline-none">
                     </div>
-                    <div class="md:col-span-2">
-                        <label class="block text-xs font-bold text-gray-600 mb-1">Room Type</label>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-600 mb-1">Course Type</label>
                         <select name="type" required class="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-1 focus:ring-maroon focus:outline-none">
-                            <option value="Classroom">Classroom</option>
-                            <option value="Lab">Lab (Practical)</option>
+                            <option value="Classroom">Theory (Normal)</option>
+                            <option value="Computer Lab">Computer Lab</option>
+                            <option value="Physics Lab">Physics Lab</option>
+                            <option value="Chemistry Lab">Chemistry Lab</option>
+                            <option value="Biology Lab">Biology Lab</option>
+                            <option value="Zoology Lab">Zoology Lab</option>
                         </select>
                     </div>
-                </div>
-                
-                <div class="flex justify-end mt-2">
-                    <button name="add" class="bg-[#a60b26] text-white px-8 py-2.5 rounded-lg font-bold hover:bg-[#8a0a20] transition shadow-sm">Save Course</button>
+                    
+                    <div class="lg:col-span-2 flex justify-end items-end mt-2 lg:mt-0">
+                        <button name="add" class="bg-[#a60b26] text-white px-8 py-2.5 rounded-lg font-bold hover:bg-[#8a0a20] transition shadow-sm w-full lg:w-auto h-[42px]">Save Course</button>
+                    </div>
                 </div>
             </form>
         </div>
@@ -249,6 +256,7 @@ $shifts = $pdo->query("SELECT * FROM shifts")->fetchAll();
                     <table class="w-full text-left text-sm whitespace-nowrap">
                         <thead class="bg-gray-50 text-xs uppercase text-gray-500 border-b border-gray-200 sticky top-0 z-10 shadow-sm">
                             <tr>
+                                <th class="p-3 font-semibold">Course Code</th>
                                 <th class="p-3 font-semibold">Course Name</th>
                                 <th class="p-3 font-semibold">Semester/Year</th>
                                 <th class="p-3 font-semibold text-center">Section</th>
@@ -261,6 +269,7 @@ $shifts = $pdo->query("SELECT * FROM shifts")->fetchAll();
                         <tbody>
                             <?php foreach($crs as $c): ?>
                             <tr class="border-b last:border-0 hover:bg-red-50/30 transition group">
+                                <td class="p-3 font-bold text-gray-500 text-xs"><?php echo htmlspecialchars($c['CourseCode'] ?? '-'); ?></td>
                                 <td class="p-3 font-bold text-gray-800"><?php echo htmlspecialchars($c['Name']); ?></td>
                                 <td class="p-3 text-gray-700 font-semibold"><?php echo htmlspecialchars($c['S']); ?></td>
                                 <td class="p-3 text-center">
@@ -283,7 +292,7 @@ $shifts = $pdo->query("SELECT * FROM shifts")->fetchAll();
                                 <td class="p-3 text-right">
                                     <div class="flex items-center justify-end gap-2 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
                                         <button type="button" onclick='openCloneModal(<?php echo json_encode([
-                                            "id" => $c["CourseID"], "name" => $c["Name"], "pid" => $c["ProgramID"], 
+                                            "id" => $c["CourseID"], "code" => $c["CourseCode"], "name" => $c["Name"], "pid" => $c["ProgramID"], 
                                             "did" => $c["DepartmentID"], "sid" => $c["SemesterID"]
                                         ]); ?>)' class="text-green-600 hover:text-green-800 bg-green-50 hover:bg-green-100 p-1.5 rounded-md transition" title="Clone Course to Another Shift">
                                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
@@ -292,9 +301,10 @@ $shifts = $pdo->query("SELECT * FROM shifts")->fetchAll();
                                             </svg>
                                         </button>
                                         <button type="button" onclick='openEditModal(<?php echo json_encode([
-                                            "id" => $c["CourseID"], "name" => $c["Name"], "pid" => $c["ProgramID"], 
-                                            "did" => $c["DepartmentID"], "sid" => $c["SemesterID"], "shift" => $c["ShiftID"], 
-                                            "secid" => $c["SectionID"], "tid" => $c["TeacherID"], "cr" => $c["CreditHours"], "type" => $c["RoomType"]
+                                            "id" => $c["CourseID"], "code" => $c["CourseCode"], "name" => $c["Name"], 
+                                            "pid" => $c["ProgramID"], "did" => $c["DepartmentID"], "sid" => $c["SemesterID"], 
+                                            "shift" => $c["ShiftID"], "secid" => $c["SectionID"], "tid" => $c["TeacherID"], 
+                                            "cr" => $c["CreditHours"], "type" => $c["RoomType"]
                                         ]); ?>)' class="text-blue-500 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 p-1.5 rounded-md transition" title="Edit Course">
                                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" /></svg>
                                         </button>
@@ -364,15 +374,19 @@ $shifts = $pdo->query("SELECT * FROM shifts")->fetchAll();
 
 <!-- Edit Modal -->
 <div id="editModal" class="fixed inset-0 bg-black/50 flex justify-center items-center z-[100]" style="display: none;">
-    <div class="bg-white p-6 rounded-xl shadow-xl w-full max-w-[600px] border border-gray-100 max-h-[90vh] overflow-y-auto">
+    <div class="bg-white p-6 rounded-xl shadow-xl w-full max-w-[1000px] border border-gray-100 max-h-[90vh] overflow-y-auto">
         <h3 class="font-bold text-lg mb-4 text-[#111827]">Edit Course</h3>
         <form method="POST" class="flex flex-col gap-4">
             <input type="hidden" name="action" value="edit">
             <input type="hidden" name="id" id="edit_id">
             
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div class="lg:col-span-1">
-                    <label class="block text-xs font-bold text-gray-600 mb-1">Course Name</label>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 mb-1">Code</label>
+                    <input type="text" name="code" id="edit_code" class="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-1 focus:ring-maroon focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 mb-1">Name</label>
                     <input type="text" name="name" id="edit_name" required class="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-1 focus:ring-maroon focus:outline-none">
                 </div>
                 <div>
@@ -393,9 +407,6 @@ $shifts = $pdo->query("SELECT * FROM shifts")->fetchAll();
                         <?php foreach($sems as $s): echo "<option value='{$s['SemesterID']}' data-prog='{$s['ProgramID']}'>{$s['Label']}</option>"; endforeach; ?>
                     </select>
                 </div>
-            </div>
-            
-            <div class="grid grid-cols-1 md:grid-cols-6 gap-4">
                 <div>
                     <label class="block text-xs font-bold text-gray-600 mb-1">Shift</label>
                     <select name="shift" id="edit_shift" required class="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-1 focus:ring-maroon focus:outline-none">
@@ -403,27 +414,31 @@ $shifts = $pdo->query("SELECT * FROM shifts")->fetchAll();
                         <?php foreach($shifts as $sh): echo "<option value='{$sh['ShiftID']}'>{$sh['Name']}</option>"; endforeach; ?>
                     </select>
                 </div>
-                <div class="md:col-span-1">
+                <div>
                     <label class="block text-xs font-bold text-gray-600 mb-1">Section</label>
                     <select name="secid" id="edit_secid" class="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-1 focus:ring-maroon focus:outline-none">
                         <option value="">General</option>
                     </select>
                 </div>
-                <div class="md:col-span-2">
+                <div>
                     <label class="block text-xs font-bold text-gray-600 mb-1">Teacher</label>
                     <select name="tid" id="edit_tid" required class="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-1 focus:ring-maroon focus:outline-none">
                         <?php foreach($teachers as $t): echo "<option value='{$t['UserID']}'>{$t['Name']}</option>"; endforeach; ?>
                     </select>
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-gray-600 mb-1" title="For BS: Credit Hours. For Inter: Weekly Periods. Max 6 allowed per course based on shift capabilities.">Lectures (Cr.Hrs/Periods)</label>
+                    <label class="block text-xs font-bold text-gray-600 mb-1" title="For BS: Credit Hours. For Inter: Weekly Periods. Max 6 allowed per course based on shift capabilities.">Weekly Periods</label>
                     <input type="number" name="cr" id="edit_cr" required min="1" max="6" class="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-1 focus:ring-maroon focus:outline-none">
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-gray-600 mb-1">Room Type</label>
+                    <label class="block text-xs font-bold text-gray-600 mb-1">Course Type</label>
                     <select name="type" id="edit_type" required class="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-1 focus:ring-maroon focus:outline-none">
-                        <option value="Classroom">Classroom</option>
-                        <option value="Lab">Lab (Practical)</option>
+                        <option value="Classroom">Theory (Normal)</option>
+                        <option value="Computer Lab">Computer Lab</option>
+                        <option value="Physics Lab">Physics Lab</option>
+                        <option value="Chemistry Lab">Chemistry Lab</option>
+                        <option value="Biology Lab">Biology Lab</option>
+                        <option value="Zoology Lab">Zoology Lab</option>
                     </select>
                 </div>
             </div>
@@ -514,6 +529,7 @@ document.getElementById('edit_shift').addEventListener('change', () => loadSecti
 
 function openEditModal(data) {
     document.getElementById('edit_id').value = data.id;
+    document.getElementById('edit_code').value = data.code || '';
     document.getElementById('edit_name').value = data.name;
     document.getElementById('edit_pid').value = data.pid;
     

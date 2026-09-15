@@ -102,8 +102,10 @@ $designations = $pdo->query("SELECT * FROM designation_workload ORDER BY MaxWeek
                                     <input type="number" name="hod" value="<?php echo $d['HODWeeklyPeriods']; ?>" class="border rounded p-1 w-24 text-center font-bold text-gray-700 outline-none focus:ring-1 focus:ring-maroon" required min="1">
                                 </td>
                                 <td class="p-4 text-center whitespace-nowrap w-32">
-                                    <button type="submit" name="edit" title="Save Limits" class="text-blue-600 hover:text-blue-800 hover:underline text-xs font-bold uppercase transition mr-3">Save</button>
-                                    <button type="submit" name="delete" title="Delete Designation" onclick="return confirm('Are you sure you want to delete this designation?');" class="text-red-500 hover:text-red-700 hover:underline text-xs font-bold uppercase transition">Del</button>
+                                    <div class="flex items-center justify-center gap-3">
+                                        <button type="submit" name="edit" title="Save Changes" style="background-color: #f0f6fc; color: #4078f2;" class="px-4 py-1.5 rounded-md font-bold text-sm transition hover:opacity-80">Save</button>
+                                        <button type="submit" name="delete" onclick="return confirm('Are you sure you want to delete this designation?');" style="background-color: #fdf2f2; color: #e63946;" class="px-4 py-1.5 rounded-md font-bold text-sm transition hover:opacity-80">Del</button>
+                                    </div>
                                 </td>
                             </form>
                         </tr>

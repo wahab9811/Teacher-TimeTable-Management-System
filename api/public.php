@@ -1,4 +1,5 @@
 <?php
+session_start();
 require_once __DIR__ . '/../config/db.php';
 header('Content-Type: application/json');
 
@@ -7,7 +8,7 @@ $action = $_GET['action'] ?? '';
 // ... existing code ...
 if ($action == 'get_teacher_slots') {
     $t_id = $_GET['t_id'] ?? 0;
-    $stmt = $pdo->prepare("SELECT t.*, ts.PeriodNumber, c.Name as CourseName FROM timetable t JOIN time_slots ts ON t.SlotID=ts.SlotID JOIN courses c ON t.CourseID=c.CourseID JOIN academic_sessions sess ON t.SessionID=sess.SessionID WHERE t.TeacherID=? AND sess.IsActive=1 ORDER BY t.Day, ts.PeriodNumber");
+    $stmt = $pdo->prepare("SELECT t.*, ts.PeriodNumber, c.Name as CourseName FROM timetable t JOIN time_slots ts ON t.SlotID=ts.SlotID JOIN courses c ON t.CourseID=c.CourseID JOIN academic_sessions sess ON t.SessionID=sess.SessionID WHERE t.TeacherID=? AND sess.IsActive=1 AND t.Status='published' ORDER BY t.Day, ts.PeriodNumber");
     $stmt->execute([$t_id]);
     echo json_encode($stmt->fetchAll());
     exit;
@@ -21,10 +22,10 @@ if ($action == 'get_sections') {
 
     if($progId && $deptId && $semId) {
         if ($shiftId) {
-            $stmt = $pdo->prepare("SELECT s.SectionID, s.Name, sh.Name as ShiftName, s.ShiftID FROM sections s JOIN shifts sh ON s.ShiftID=sh.ShiftID WHERE s.ProgramID=? AND s.DepartmentID=? AND s.SemesterID=? AND s.ShiftID=? ORDER BY s.Name, sh.Name");
+            $stmt = $pdo->prepare("SELECT s.SectionID, s.Name, sh.Name as ShiftName, s.ShiftID, s.HomeRoomID FROM sections s JOIN shifts sh ON s.ShiftID=sh.ShiftID WHERE s.ProgramID=? AND s.DepartmentID=? AND s.SemesterID=? AND s.ShiftID=? ORDER BY s.Name, sh.Name");
             $stmt->execute([$progId, $deptId, $semId, $shiftId]);
         } else {
-            $stmt = $pdo->prepare("SELECT s.SectionID, s.Name, sh.Name as ShiftName, s.ShiftID FROM sections s JOIN shifts sh ON s.ShiftID=sh.ShiftID WHERE s.ProgramID=? AND s.DepartmentID=? AND s.SemesterID=? ORDER BY s.Name, sh.Name");
+            $stmt = $pdo->prepare("SELECT s.SectionID, s.Name, sh.Name as ShiftName, s.ShiftID, s.HomeRoomID FROM sections s JOIN shifts sh ON s.ShiftID=sh.ShiftID WHERE s.ProgramID=? AND s.DepartmentID=? AND s.SemesterID=? ORDER BY s.Name, sh.Name");
             $stmt->execute([$progId, $deptId, $semId]);
         }
         echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
@@ -40,7 +41,7 @@ if ($action == 'get_free_slots_for_section') {
         $stmt = $pdo->prepare("SELECT t.*, ts.PeriodNumber, 
                                IF(t.Day='Friday' AND ts.FridayStartTime IS NOT NULL, ts.FridayStartTime, ts.StartTime) as StartTime,
                                IF(t.Day='Friday' AND ts.FridayEndTime IS NOT NULL, ts.FridayEndTime, ts.EndTime) as EndTime
-                               FROM timetable t JOIN time_slots ts ON t.SlotID=ts.SlotID JOIN academic_sessions sess ON t.SessionID=sess.SessionID WHERE t.SectionID=? AND t.IsFree=1 AND sess.IsActive=1 ORDER BY FIELD(t.Day, 'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'), ts.PeriodNumber");
+                               FROM timetable t JOIN time_slots ts ON t.SlotID=ts.SlotID JOIN academic_sessions sess ON t.SessionID=sess.SessionID WHERE t.SectionID=? AND t.IsFree=1 AND sess.IsActive=1 AND t.Status='published' ORDER BY FIELD(t.Day, 'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'), ts.PeriodNumber");
         $stmt->execute([$secId]);
         echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
     } else {
@@ -54,7 +55,7 @@ if ($action == 'get_swap_targets_for_section') {
     $ttId = isset($_GET['tt_id']) ? intval($_GET['tt_id']) : 0;
     
     if ($secId && $ttId) {
-        $stmtTT = $pdo->prepare("SELECT TeacherID FROM timetable WHERE TimetableID=?");
+        $stmtTT = $pdo->prepare("SELECT TeacherID FROM timetable WHERE TimetableID=? AND Status='published'");
         $stmtTT->execute([$ttId]);
         $teacherId = $stmtTT->fetchColumn();
         
@@ -66,7 +67,7 @@ if ($action == 'get_swap_targets_for_section') {
                                JOIN courses c ON t.CourseID=c.CourseID
                                JOIN users u ON t.TeacherID=u.UserID
                                JOIN academic_sessions sess ON t.SessionID=sess.SessionID 
-                               WHERE t.SectionID=? AND t.TeacherID != ? AND t.IsFree=0 AND sess.IsActive=1 
+                               WHERE t.SectionID=? AND t.TeacherID != ? AND t.IsFree=0 AND sess.IsActive=1 AND t.Status='published' 
                                ORDER BY FIELD(t.Day, 'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'), ts.PeriodNumber");
         $stmt->execute([$secId, $teacherId]);
         echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
@@ -118,7 +119,7 @@ if ($action == 'get_timetable') {
     }
 
     if ($view === 'day') {
-        $stmt = $pdo->prepare("SELECT * FROM college_calendar WHERE Category = 'holiday' AND Date = ?");
+        $stmt = $pdo->prepare("SELECT * FROM college_calendar WHERE Category = 'holiday' AND ? BETWEEN Date AND IFNULL(EndDate, Date)");
         $stmt->execute([$targetDate]);
         $holiday = $stmt->fetch();
 
@@ -140,6 +141,10 @@ if ($action == 'get_timetable') {
               LEFT JOIN rooms r ON t.RoomID = r.RoomID
               LEFT JOIN sections sec ON t.SectionID = sec.SectionID
               WHERE t.ProgramID = ? AND t.DepartmentID = ? AND t.SemesterID = ? AND t.ShiftID = ? AND sess.IsActive = 1 ";
+              
+    if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
+        $query .= " AND t.Status = 'published' ";
+    }
               
     $params = [$program_id, $dept_id, $sem_id, $shift_id];
     
@@ -175,7 +180,16 @@ if ($action == 'get_timetable') {
         }
     }
     
-    $emptyFlag = empty($schedule) ? true : false;
+    $emptyFlag = true;
+    if (!empty($schedule)) {
+        foreach($schedule as $s) {
+            if ($s['IsFree'] == 0) {
+                $emptyFlag = false;
+                break;
+            }
+        }
+    }
+    
     echo json_encode(['success' => true, 'data' => $schedule, 'day' => $dayName, 'view' => $view, 'empty' => $emptyFlag]);
     exit;
 }

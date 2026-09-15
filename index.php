@@ -255,9 +255,14 @@ function updateSections() {
         .then(r => r.json())
         .then(data => {
             data.forEach(sec => {
-                let opt = document.createElement('option');
-                opt.value = sec.SectionID; opt.textContent = 'Section ' + sec.Name;
-                secSelect.appendChild(opt);
+                let nameLow = sec.Name.toLowerCase();
+                if(nameLow === 'none' || nameLow === 'main' || nameLow === 'general') {
+                    secSelect.options[0].value = sec.SectionID;
+                } else {
+                    let opt = document.createElement('option');
+                    opt.value = sec.SectionID; opt.textContent = 'Section ' + sec.Name;
+                    secSelect.appendChild(opt);
+                }
             });
         });
     }

@@ -9,7 +9,7 @@ require_once __DIR__ . '/../api/timetable_rules.php';
 
 $message = $error = '';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_timetable'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['save_timetable']) || isset($_POST['ajax']))) {
     $sessID = $_POST['session_id'];
     $pID = $_POST['program_id'];
     $dID = $_POST['department_id'];
@@ -19,73 +19,95 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_timetable'])) {
     $day = $_POST['day'];
     
     $slots = $_POST['slots'] ?? [];
+    $isAjax = isset($_POST['ajax']);
     
-    $pdo->beginTransaction();
-    try {
-        foreach($slots as $period => $d) {
-            $isFree = isset($d['is_free']) ? 1 : 0;
-            $courseId = $isFree ? null : ($d['course_id'] ?: null);
-            $teacherId = $isFree ? null : ($d['teacher_id'] ?: null);
-            $roomId = $isFree ? null : ($d['room_id'] ?: null);
-            
-            $slotQuery = $pdo->prepare("SELECT SlotID FROM time_slots WHERE ShiftID = ? AND PeriodNumber = ?");
-            $slotQuery->execute([$shID, $period]);
-            $slotId = $slotQuery->fetchColumn();
-            
-            if(!$slotId) continue;
-            
-            if(!$isFree && (!$courseId || !$teacherId || !$roomId)) {
-                throw new Exception("Period $period requires Course, Teacher, and Room unless marked Free.");
-            }
+    $errors = [];
+    $successCount = 0;
     
-            $testData = [
-                'ProgramID' => $pID,
-                'DepartmentID' => $dID,
-                'SemesterID' => $sID,
-                'ShiftID' => $shID,
-                'SessionID' => $sessID,
-                'SectionID' => $secID,
-                'Day' => $day,
-                'SlotID' => $slotId,
-                'CourseID' => $courseId,
-                'TeacherID' => $teacherId,
-                'RoomID' => $roomId,
-                'IsFree' => $isFree
-            ];
-            
-            if ($secID) {
-                $exist = $pdo->prepare("SELECT TimetableID FROM timetable WHERE ProgramID=? AND DepartmentID=? AND SemesterID=? AND ShiftID=? AND SessionID=? AND SectionID=? AND Day=? AND SlotID=?");
-                $exist->execute([$pID, $dID, $sID, $shID, $sessID, $secID, $day, $slotId]);
-            } else {
-                $exist = $pdo->prepare("SELECT TimetableID FROM timetable WHERE ProgramID=? AND DepartmentID=? AND SemesterID=? AND ShiftID=? AND SessionID=? AND SectionID IS NULL AND Day=? AND SlotID=?");
-                $exist->execute([$pID, $dID, $sID, $shID, $sessID, $day, $slotId]);
-            }
-            $existingID = $exist->fetchColumn();
-            
-            $valid = validateTimetableSlot($pdo, $testData, $existingID);
-            if ($valid !== true) {
-                throw new Exception("Period $period Conflict: $valid");
-            }
-            
-            // Insert/Update immediately so subsequent loops see this DB state natively
-            if ($existingID) {
-                $upd = $pdo->prepare("UPDATE timetable SET CourseID=?, TeacherID=?, RoomID=?, IsFree=? WHERE TimetableID=?");
-                $upd->execute([$testData['CourseID'], $testData['TeacherID'], $testData['RoomID'], $testData['IsFree'], $existingID]);
-            } else {
-                $ins = $pdo->prepare("INSERT INTO timetable (ProgramID, DepartmentID, SemesterID, ShiftID, SessionID, SectionID, Day, SlotID, CourseID, TeacherID, RoomID, IsFree) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                $ins->execute([$testData['ProgramID'], $testData['DepartmentID'], $testData['SemesterID'], $testData['ShiftID'], $testData['SessionID'], $testData['SectionID'], $testData['Day'], $testData['SlotID'], $testData['CourseID'], $testData['TeacherID'], $testData['RoomID'], $testData['IsFree']]);
-            }
-            
-            if (!$testData['IsFree'] && $testData['TeacherID']) {
-                $msg = "Your timetable was assigned/updated for $day Period $period.";
-                $pdo->prepare("INSERT INTO notifications (ScopeType, TeacherID, Message) VALUES ('teacher', ?, ?)")->execute([$testData['TeacherID'], $msg]);
-            }
+    foreach($slots as $period => $d) {
+        $isFree = isset($d['is_free']) ? 1 : 0;
+        $courseId = $d['course_id'] ?: null;
+        $teacherId = $d['teacher_id'] ?: null;
+        $roomId = $d['room_id'] ?: null;
+
+        if (!$isFree && empty($courseId) && empty($teacherId) && empty($roomId)) {
+            $isFree = 1;
+        } elseif (!$isFree && (!$courseId || !$teacherId || !$roomId)) {
+            $errors[] = "Period $period requires Course, Teacher, and Room unless marked Free or left entirely blank.";
+            continue;
         }
-        $pdo->commit();
-        $message = "Timetable saved successfully.";
-    } catch(Exception $e) {
-        $pdo->rollBack();
-        $error = $e->getMessage();
+        
+        $slotQuery = $pdo->prepare("SELECT SlotID FROM time_slots WHERE ShiftID = ? AND PeriodNumber = ?");
+        $slotQuery->execute([$shID, $period]);
+        $slotId = $slotQuery->fetchColumn();
+        
+        if(!$slotId) continue;
+        
+        $testData = [
+            'ProgramID' => $pID,
+            'DepartmentID' => $dID,
+            'SemesterID' => $sID,
+            'ShiftID' => $shID,
+            'SessionID' => $sessID,
+            'SectionID' => $secID,
+            'Day' => $day,
+            'SlotID' => $slotId,
+            'CourseID' => $courseId,
+            'TeacherID' => $teacherId,
+            'RoomID' => $roomId,
+            'IsFree' => $isFree
+        ];
+        
+        if ($secID) {
+            $exist = $pdo->prepare("SELECT TimetableID, TeacherID FROM timetable WHERE ProgramID=? AND DepartmentID=? AND SemesterID=? AND ShiftID=? AND SessionID=? AND SectionID=? AND Day=? AND SlotID=?");
+            $exist->execute([$pID, $dID, $sID, $shID, $sessID, $secID, $day, $slotId]);
+        } else {
+            $exist = $pdo->prepare("SELECT TimetableID, TeacherID FROM timetable WHERE ProgramID=? AND DepartmentID=? AND SemesterID=? AND ShiftID=? AND SessionID=? AND SectionID IS NULL AND Day=? AND SlotID=?");
+            $exist->execute([$pID, $dID, $sID, $shID, $sessID, $day, $slotId]);
+        }
+        $existingRow = $exist->fetch();
+        $existingID = $existingRow ? $existingRow['TimetableID'] : null;
+        $existingTeacherID = $existingRow ? $existingRow['TeacherID'] : null;
+        
+        $valid = validateTimetableSlot($pdo, $testData, $existingID);
+        if ($valid !== true) {
+            $errors[] = "Period $period Conflict: $valid";
+            continue;
+        }
+        
+        if ($existingID) {
+            $upd = $pdo->prepare("UPDATE timetable SET CourseID=?, TeacherID=?, RoomID=?, IsFree=?, Status='draft' WHERE TimetableID=?");
+            $upd->execute([$testData['CourseID'], $testData['TeacherID'], $testData['RoomID'], $testData['IsFree'], $existingID]);
+        } else {
+            $ins = $pdo->prepare("INSERT INTO timetable (ProgramID, DepartmentID, SemesterID, ShiftID, SessionID, SectionID, Day, SlotID, CourseID, TeacherID, RoomID, IsFree, Status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft')");
+            $ins->execute([$testData['ProgramID'], $testData['DepartmentID'], $testData['SemesterID'], $testData['ShiftID'], $testData['SessionID'], $testData['SectionID'], $testData['Day'], $testData['SlotID'], $testData['CourseID'], $testData['TeacherID'], $testData['RoomID'], $testData['IsFree']]);
+        }
+        
+        $successCount++;
+    }
+    
+    if (empty($errors)) {
+        if ($successCount > 0) {
+            $message = "Timetable saved successfully.";
+        } else {
+            $message = "No periods were submitted.";
+        }
+    } else {
+        $errorMsg = implode("<br>", $errors);
+        $error = "Some periods could not be saved:<br>" . $errorMsg;
+        if ($successCount > 0) {
+            $message = "$successCount periods saved. However, there were errors.";
+        }
+    }
+
+    if ($isAjax) {
+        header('Content-Type: application/json');
+        echo json_encode([
+            'success' => empty($errors),
+            'message' => $message ?? '',
+            'error' => $error ?? ''
+        ]);
+        exit;
     }
 }
 
@@ -108,10 +130,12 @@ $shift_periods = $pdo->query("SELECT ShiftID, MAX(PeriodNumber) as MaxPeriod FRO
         <h2 class="text-2xl font-bold text-maroon mb-4">Manual Timetable Entry</h2>
         
         <div class="bg-white p-6 shadow-md rounded">
-            <?php if($message): ?><div class="bg-green-100 text-green-700 p-3 rounded mb-4 font-bold border"><?php echo $message; ?></div><?php endif; ?>
-            <?php if($error): ?><div class="bg-red-100 text-red-700 p-3 rounded mb-4 font-bold border"><?php echo $error; ?></div><?php endif; ?>
+            <div id="msg_container">
+                <?php if($message): ?><div class="bg-green-100 text-green-700 p-3 rounded mb-4 font-bold border"><?php echo $message; ?></div><?php endif; ?>
+                <?php if($error): ?><div class="bg-red-100 text-red-700 p-3 rounded mb-4 font-bold border"><?php echo $error; ?></div><?php endif; ?>
+            </div>
             
-            <form method="POST" id="tt_form">
+            <form method="POST" id="tt_form" onsubmit="submitTimetable(event)">
                 <div class="grid grid-cols-2 md:grid-cols-7 gap-3 mb-6 border-b pb-4">
                     <div>
                         <label class="block font-bold mb-1 text-sm text-gray-700">Session</label>
@@ -250,15 +274,27 @@ function loadSectionsForTT() {
     secSelect.innerHTML = '<option value="">No Section / General</option>';
     
     if(pid && did && sid && sh) {
-        fetch(`../api/public.php?action=get_sections&program_id=${pid}&dept_id=${did}&semester_id=${sid}&shift_id=${sh}`)
+        fetch(`../api/public.php?action=get_sections&program_id=${pid}&dept_id=${did}&semester_id=${sid}&shift_id=${sh}&_=${Date.now()}`)
         .then(r => r.json())
         .then(data => {
             data.forEach(sec => {
-                let opt = document.createElement('option');
-                opt.value = sec.SectionID; opt.textContent = 'Section ' + sec.Name;
-                secSelect.appendChild(opt);
+                let nameLow = sec.Name.toLowerCase();
+                if(nameLow === 'none' || nameLow === 'main' || nameLow === 'general') {
+                    secSelect.options[0].value = sec.SectionID;
+                    if (sec.HomeRoomID) secSelect.options[0].setAttribute('data-homeroom', sec.HomeRoomID);
+                } else {
+                    let opt = document.createElement('option');
+                    opt.value = sec.SectionID; opt.textContent = 'Section ' + sec.Name;
+                    if (sec.HomeRoomID) {
+                        opt.setAttribute('data-homeroom', sec.HomeRoomID);
+                    }
+                    secSelect.appendChild(opt);
+                }
             });
-            if([...secSelect.options].some(o => o.value === currentVal)) {
+            if(window._pendingSecId && [...secSelect.options].some(o => o.value == window._pendingSecId)) {
+                secSelect.value = window._pendingSecId;
+                window._pendingSecId = null;
+            } else if(currentVal !== '' && [...secSelect.options].some(o => o.value == currentVal)) {
                 secSelect.value = currentVal;
             }
             fetchCourses();
@@ -284,6 +320,9 @@ function fetchCourses() {
     let sh = document.getElementById('shid').value;
     let day = document.getElementById('dayid').value;
     
+    let secOpt = document.getElementById('secid').options[document.getElementById('secid').selectedIndex];
+    let defaultRoomId = secOpt && secOpt.hasAttribute('data-homeroom') ? secOpt.getAttribute('data-homeroom') : '';
+    
     if(sess && p && d && s && sh && day) {
         let maxP = shiftPeriods[sh] || 0;
         for(let i=1; i<=maxOverall; i++) {
@@ -304,7 +343,7 @@ function fetchCourses() {
         document.getElementById('grid_area').classList.remove('hidden');
         
         // Fetch courses assigned to this section (or general)
-        fetch(`<?php echo $base_url; ?>/api/admin.php?action=get_class_courses&p=${p}&d=${d}&s=${s}&sh=${sh}&sec=${sec}`)
+        fetch(`<?php echo $base_url; ?>/api/admin.php?action=get_class_courses&p=${p}&d=${d}&s=${s}&sh=${sh}&sec=${sec}&_=${Date.now()}`)
         .then(res => res.json())
         .then(data => {
             let classes = document.querySelectorAll('.course_select');
@@ -321,10 +360,10 @@ function fetchCourses() {
             });
             
             // Now fetch existing timetable data (filtered by session)
-            fetch(`<?php echo $base_url; ?>/api/admin.php?action=get_existing_timetable&sess=${sess}&p=${p}&d=${d}&s=${s}&sh=${sh}&sec=${sec}&day=${day}`)
+            fetch(`<?php echo $base_url; ?>/api/admin.php?action=get_existing_timetable&sess=${sess}&p=${p}&d=${d}&s=${s}&sh=${sh}&sec=${sec}&day=${day}&_=${Date.now()}`)
             .then(res2 => res2.json())
             .then(existingData => {
-                populateExistingTimetable(existingData);
+                populateExistingTimetable(existingData, defaultRoomId);
             });
             
         }).catch(err => {
@@ -335,7 +374,7 @@ function fetchCourses() {
     }
 }
 
-function populateExistingTimetable(data) {
+function populateExistingTimetable(data, defaultRoom = '') {
     for(let i=1; i<=maxOverall; i++) {
         let courseSel = document.querySelector(`select[name="slots[${i}][course_id]"]`);
         let teacherSel = document.querySelector(`select[name="slots[${i}][teacher_id]"]`);
@@ -344,7 +383,7 @@ function populateExistingTimetable(data) {
         
         if(courseSel) courseSel.value = '';
         if(teacherSel) teacherSel.value = '';
-        if(roomSel) roomSel.value = '';
+        if(roomSel) roomSel.value = defaultRoom;
         if(freeCb) { freeCb.checked = false; toggleFree(freeCb, i); }
     }
     
@@ -370,10 +409,21 @@ function populateExistingTimetable(data) {
 function autoSelectTeacher(courseSelect) {
     let selectedOption = courseSelect.options[courseSelect.selectedIndex];
     if(selectedOption) {
+        // Auto-select Teacher based on Course
         let teacherId = selectedOption.getAttribute('data-teacher-id');
         if (teacherId) {
             let teacherSelect = courseSelect.parentElement.querySelector('.teacher_select');
             if (teacherSelect) teacherSelect.value = teacherId;
+        }
+        
+        // Auto-select Home Room based on Section
+        let secOpt = document.getElementById('secid').options[document.getElementById('secid').selectedIndex];
+        let defaultRoomId = secOpt && secOpt.hasAttribute('data-homeroom') ? secOpt.getAttribute('data-homeroom') : '';
+        if (defaultRoomId) {
+            let roomSelect = courseSelect.parentElement.querySelector('.room_select');
+            if (roomSelect && (!roomSelect.value || roomSelect.value === '')) {
+                roomSelect.value = defaultRoomId.trim();
+            }
         }
     }
 }
@@ -386,5 +436,81 @@ function toggleFree(cb, idx) {
         inputs.forEach(i => { i.disabled = false; });
     }
 }
-</script>
 
+window.addEventListener('DOMContentLoaded', () => {
+    let params = new URLSearchParams(window.location.search);
+    if(params.get('pid')) {
+        let pid = params.get('pid');
+        let did = params.get('did');
+        let sid = params.get('sid');
+        let shid = params.get('shid');
+        window._pendingSecId = params.get('secid');
+        
+        document.getElementById('pid').value = pid;
+        let deptSel = document.getElementById('did');
+        let semSel = document.getElementById('sid');
+        
+        deptSel.innerHTML = '<option value="">-Select-</option>';
+        depts.filter(d => d.ProgramID == pid).forEach(d => {
+            let opt = new Option(d.Name, d.DepartmentID);
+            if(d.DepartmentID == did) opt.selected = true;
+            deptSel.add(opt);
+        });
+
+        semSel.innerHTML = '<option value="">-Select-</option>';
+        sems.filter(s => s.ProgramID == pid).forEach(s => {
+            let opt = new Option(s.Label, s.SemesterID);
+            if(s.SemesterID == sid) opt.selected = true;
+            semSel.add(opt);
+        });
+        
+        if(shid) document.getElementById('shid').value = shid;
+        
+        // Set day to Monday just to show grid by default
+        document.getElementById('dayid').value = 'Monday';
+        
+        loadSectionsForTT();
+    }
+});
+
+function submitTimetable(e) {
+    e.preventDefault();
+    let form = e.target;
+    let formData = new FormData(form);
+    formData.append('ajax', '1');
+    formData.append('save_timetable', '1');
+    
+    let btn = form.querySelector('button[type="submit"]');
+    let msgContainer = document.getElementById('msg_container');
+    
+    let originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = 'Saving...';
+    msgContainer.innerHTML = '';
+    
+    fetch('', {
+        method: 'POST',
+        body: formData
+    })
+    .then(res => res.json())
+    .then(data => {
+        let html = '';
+        if (data.message) {
+            html += `<div class="bg-green-100 text-green-700 p-3 rounded mb-4 font-bold border">${data.message}</div>`;
+        }
+        if (data.error) {
+            html += `<div class="bg-red-100 text-red-700 p-3 rounded mb-4 font-bold border">${data.error}</div>`;
+        }
+        msgContainer.innerHTML = html;
+        
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    })
+    .catch(err => {
+        console.error(err);
+        msgContainer.innerHTML = `<div class="bg-red-100 text-red-700 p-3 rounded mb-4 font-bold border">A network error occurred. Please try again.</div>`;
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    });
+}
+</script>

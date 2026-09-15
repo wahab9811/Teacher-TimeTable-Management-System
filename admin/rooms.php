@@ -6,8 +6,12 @@ require_once __DIR__ . '/../config/db.php';
 $message = '';
 if($_SERVER['REQUEST_METHOD'] === 'POST') {
     if(isset($_POST['add'])) {
-        $pdo->prepare("INSERT INTO rooms (Name, Type, Capacity) VALUES (?, ?, ?)")
-            ->execute([$_POST['name'], $_POST['type'], $_POST['capacity']]);
+        $assignFor = $_POST['assign_program'] ?? '';
+        if (!empty($_POST['assign_department'])) {
+            $assignFor .= ' - ' . $_POST['assign_department'];
+        }
+        $pdo->prepare("INSERT INTO rooms (Name, Type, AssignFor) VALUES (?, ?, ?)")
+            ->execute([$_POST['name'], $_POST['type'], $assignFor]);
         $message = "Room added successfully.";
     } elseif(isset($_POST['toggle_status'])) {
         $pdo->prepare("UPDATE rooms SET IsActive = NOT IsActive WHERE RoomID = ?")->execute([$_POST['id']]);
@@ -22,8 +26,12 @@ if($_SERVER['REQUEST_METHOD'] === 'POST') {
             $message = "Room deleted."; 
         }
     } elseif(isset($_POST['edit'])) {
-        $pdo->prepare("UPDATE rooms SET Name = ?, Type = ?, Capacity = ? WHERE RoomID = ?")
-            ->execute([$_POST['name'], $_POST['type'], $_POST['capacity'], $_POST['id']]);
+        $assignFor = $_POST['edit_assign_program'] ?? '';
+        if (!empty($_POST['edit_assign_department'])) {
+            $assignFor .= ' - ' . $_POST['edit_assign_department'];
+        }
+        $pdo->prepare("UPDATE rooms SET Name = ?, Type = ?, AssignFor = ? WHERE RoomID = ?")
+            ->execute([$_POST['name'], $_POST['type'], $assignFor, $_POST['id']]);
         $message = "Room updated.";
     }
 }
@@ -37,6 +45,10 @@ foreach($rooms as $r) {
     if(!isset($groupedRooms[$r['Type']])) $groupedRooms[$r['Type']] = [];
     $groupedRooms[$r['Type']][] = $r;
 }
+
+// Fetch Programs and Departments for the Assign For dropdowns
+$programs_data = $pdo->query("SELECT * FROM programs WHERE IsActive = 1 ORDER BY Name ASC")->fetchAll(PDO::FETCH_ASSOC);
+$departments_data = $pdo->query("SELECT * FROM departments WHERE IsActive = 1 ORDER BY Name ASC")->fetchAll(PDO::FETCH_ASSOC);
 ?>
 <?php include '../includes/header.php'; ?>
 <div class="w-full px-2 md:px-8 mx-auto flex gap-6 mt-4 pb-12">
@@ -52,21 +64,36 @@ foreach($rooms as $r) {
             </div>
         <?php endif; ?>
         
-        <form method="POST" class="flex flex-col md:flex-row gap-3 mb-6 p-4 bg-gray-50 rounded border border-gray-200 shadow-sm items-end">
-            <div class="w-full md:w-1/3">
+        <form method="POST" class="flex flex-col md:flex-row gap-3 mb-6 p-4 bg-gray-50 rounded border border-gray-200 shadow-sm items-end flex-wrap">
+            <div class="w-full md:w-1/4">
                 <label class="block text-xs font-bold text-gray-600 mb-1">Room Name</label>
                 <input type="text" name="name" placeholder="e.g. Room 101 or IT Lab" required class="w-full border border-gray-300 p-2 rounded focus:ring-1 focus:ring-maroon">
             </div>
-            <div class="w-full md:w-1/4">
+            <div class="w-full md:w-1/5">
                 <label class="block text-xs font-bold text-gray-600 mb-1">Room Type</label>
                 <select name="type" class="w-full border border-gray-300 p-2 rounded focus:ring-1 focus:ring-maroon" required>
                     <option value="Classroom">Classroom</option>
-                    <option value="Lab">Lab</option>
+                    <option value="Computer Lab">Computer Lab</option>
+                    <option value="Physics Lab">Physics Lab</option>
+                    <option value="Chemistry Lab">Chemistry Lab</option>
+                    <option value="Biology Lab">Biology Lab</option>
+                    <option value="Zoology Lab">Zoology Lab</option>
                 </select>
             </div>
-            <div class="w-full md:w-1/4">
-                <label class="block text-xs font-bold text-gray-600 mb-1">Capacity</label>
-                <input type="number" name="capacity" value="50" min="1" required class="w-full border border-gray-300 p-2 rounded focus:ring-1 focus:ring-maroon">
+            <div class="w-full md:w-1/5">
+                <label class="block text-xs font-bold text-gray-600 mb-1">Assign For (Program)</label>
+                <select name="assign_program" id="add_assign_program" class="w-full border border-gray-300 p-2 rounded focus:ring-1 focus:ring-maroon" required onchange="updateDepartments(this, 'add_assign_department_container', 'add_assign_department')">
+                    <option value="">-- Select --</option>
+                    <?php foreach($programs_data as $p): ?>
+                        <option value="<?php echo htmlspecialchars($p['Name']); ?>" data-pid="<?php echo $p['ProgramID']; ?>"><?php echo htmlspecialchars($p['Name']); ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="w-full md:w-1/5" id="add_assign_department_container" style="display:none;">
+                <label class="block text-xs font-bold text-gray-600 mb-1">Department</label>
+                <select name="assign_department" id="add_assign_department" class="w-full border border-gray-300 p-2 rounded focus:ring-1 focus:ring-maroon">
+                    <option value="">-- Optional --</option>
+                </select>
             </div>
             <div class="w-full md:w-auto flex-1">
                 <button name="add" class="w-full bg-[#a60b26] text-white px-6 py-2 rounded-lg font-bold hover:bg-[#8a0a20] transition shadow-sm text-sm">Add New</button>
@@ -90,7 +117,7 @@ foreach($rooms as $r) {
                         <thead class="bg-gray-50 text-xs uppercase text-gray-500 border-b border-gray-200 sticky top-0 z-10 shadow-sm">
                             <tr>
                                 <th class="p-3 font-semibold">Room Name</th>
-                                <th class="p-3 font-semibold text-center">Capacity</th>
+                                <th class="p-3 font-semibold text-center">Assigned For</th>
                                 <th class="p-3 font-semibold text-center">Status</th>
                                 <th class="p-3 font-semibold text-right">Action</th>
                             </tr>
@@ -102,7 +129,7 @@ foreach($rooms as $r) {
                                     <?php echo htmlspecialchars($r['Name']); ?>
                                 </td>
                                 <td class="p-3 text-center text-xs text-gray-500 font-bold whitespace-nowrap">
-                                    <?php echo $r['Capacity']; ?> Seats
+                                    <?php echo htmlspecialchars($r['AssignFor'] ?? 'N/A'); ?>
                                 </td>
                                 <td class="p-3 text-center w-24">
                                     <?php if($r['IsActive']): ?>
@@ -112,7 +139,7 @@ foreach($rooms as $r) {
                                     <?php endif; ?>
                                 </td>
                                 <td class="p-3 text-right opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                                    <button type="button" onclick='openEditModal(<?php echo json_encode(["id"=>$r["RoomID"], "name"=>$r["Name"], "type"=>$r["Type"], "capacity"=>$r["Capacity"]]); ?>)' class="bg-blue-50 text-blue-600 hover:bg-blue-100 font-bold px-3 py-1.5 rounded text-xs transition-colors mr-2">Edit</button>
+                                    <button type="button" onclick='openEditModal(<?php echo json_encode(["id"=>$r["RoomID"], "name"=>$r["Name"], "type"=>$r["Type"], "assignFor"=>$r["AssignFor"]]); ?>)' class="bg-blue-50 text-blue-600 hover:bg-blue-100 font-bold px-3 py-1.5 rounded text-xs transition-colors mr-2">Edit</button>
                                     <form method="POST" class="inline"><input type="hidden" name="id" value="<?php echo $r['RoomID']; ?>"><button name="toggle_status" class="bg-gray-50 text-gray-600 hover:bg-gray-100 font-bold px-3 py-1.5 rounded text-xs transition-colors mr-2" title="Toggle Visibility">TGL</button></form>
                                     <form method="POST" onsubmit="return confirm('Warning: Deleting might affect history. Consider Toggling instead.\nDelete permanently?');" class="inline"><input type="hidden" name="id" value="<?php echo $r['RoomID']; ?>"><button name="delete" class="bg-red-50 text-red-600 hover:bg-red-100 font-bold px-3 py-1.5 rounded text-xs transition-colors">Del</button></form>
                                 </td>
@@ -129,27 +156,40 @@ foreach($rooms as $r) {
 
 <!-- Edit Modal -->
 <div id="editModal" class="fixed inset-0 bg-black/50 flex justify-center items-center z-[100]" style="display: none;">
-    <div class="bg-white p-6 rounded-xl shadow-xl w-full max-w-[400px] border border-gray-100">
+    <div class="bg-white p-6 rounded-xl shadow-xl w-full max-w-[550px] border border-gray-100">
         <h3 class="font-bold text-lg mb-4 text-[#111827]">Edit Room</h3>
         <form method="POST" class="flex flex-col gap-4">
             <input type="hidden" name="id" id="edit_id">
-            
-            <div>
-                <label class="block text-xs font-bold text-gray-600 mb-1">Room Name</label>
-                <input type="text" name="name" id="edit_name" required class="w-full border border-gray-300 p-2.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#a60b26]">
-            </div>
-            
             <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 mb-1">Room Name</label>
+                    <input type="text" name="name" id="edit_name" required class="w-full border border-gray-300 p-2.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#a60b26]">
+                </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-600 mb-1">Room Type</label>
                     <select name="type" id="edit_type" class="w-full border border-gray-300 p-2.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#a60b26]" required>
                         <option value="Classroom">Classroom</option>
-                        <option value="Lab">Lab</option>
+                        <option value="Computer Lab">Computer Lab</option>
+                        <option value="Physics Lab">Physics Lab</option>
+                        <option value="Chemistry Lab">Chemistry Lab</option>
+                        <option value="Biology Lab">Biology Lab</option>
+                        <option value="Zoology Lab">Zoology Lab</option>
                     </select>
                 </div>
-                <div>
-                    <label class="block text-xs font-bold text-gray-600 mb-1">Capacity</label>
-                    <input type="number" name="capacity" id="edit_capacity" min="1" required class="w-full border border-gray-300 p-2.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#a60b26]">
+                <div class="w-full">
+                    <label class="block text-xs font-bold text-gray-600 mb-1">Assign For (Program)</label>
+                    <select name="edit_assign_program" id="edit_assign_program" class="w-full border border-gray-300 p-2.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#a60b26]" required onchange="updateDepartments(this, 'edit_assign_department_container', 'edit_assign_department')">
+                        <option value="">-- Select --</option>
+                        <?php foreach($programs_data as $p): ?>
+                            <option value="<?php echo htmlspecialchars($p['Name']); ?>" data-pid="<?php echo $p['ProgramID']; ?>"><?php echo htmlspecialchars($p['Name']); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="w-full" id="edit_assign_department_container" style="display:none;">
+                    <label class="block text-xs font-bold text-gray-600 mb-1">Department</label>
+                    <select name="edit_assign_department" id="edit_assign_department" class="w-full border border-gray-300 p-2.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#a60b26]">
+                        <option value="">-- Optional --</option>
+                    </select>
                 </div>
             </div>
             
@@ -162,11 +202,54 @@ foreach($rooms as $r) {
 </div>
 
 <script>
+const depts = <?php echo json_encode($departments_data); ?>;
+
+function updateDepartments(selectElement, containerId, deptSelectId) {
+    const container = document.getElementById(containerId);
+    const deptSelect = document.getElementById(deptSelectId);
+    if (!selectElement.value) {
+        container.style.display = 'none';
+        deptSelect.innerHTML = '<option value="">-- Optional --</option>';
+        return;
+    }
+    const pid = selectElement.options[selectElement.selectedIndex].getAttribute('data-pid');
+    const filteredDepts = depts.filter(d => d.ProgramID == pid);
+    if (filteredDepts.length > 0) {
+        container.style.display = 'block';
+        deptSelect.innerHTML = '<option value="">-- All / Not Specified --</option>';
+        filteredDepts.forEach(d => {
+            deptSelect.innerHTML += `<option value="${d.Name}">${d.Name}</option>`;
+        });
+    } else {
+        container.style.display = 'none';
+        deptSelect.innerHTML = '<option value="">-- Optional --</option>';
+    }
+}
+
 function openEditModal(data) {
     document.getElementById('edit_id').value = data.id;
     document.getElementById('edit_name').value = data.name;
     document.getElementById('edit_type').value = data.type;
-    document.getElementById('edit_capacity').value = data.capacity;
+    
+    // Parse AssignFor
+    let program = '';
+    let department = '';
+    if (data.assignFor) {
+        let parts = data.assignFor.split(' - ');
+        program = parts[0] ? parts[0].trim() : '';
+        department = parts.length > 1 ? parts[1].trim() : '';
+    }
+    
+    const progSelect = document.getElementById('edit_assign_program');
+    progSelect.value = program;
+    
+    // Trigger the update for dept
+    updateDepartments(progSelect, 'edit_assign_department_container', 'edit_assign_department');
+    
+    // Select dept if present
+    if (department) {
+        document.getElementById('edit_assign_department').value = department;
+    }
     
     document.getElementById('editModal').style.display = 'flex';
 }

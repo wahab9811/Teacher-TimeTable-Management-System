@@ -7,9 +7,11 @@ $message = '';
 
 if($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if($_POST['action'] === 'add') {
-        $stmt = $pdo->prepare("INSERT INTO sections (ProgramID, DepartmentID, SemesterID, ShiftID, Name, InchargeID) VALUES (?, ?, ?, ?, ?, ?)");
+        $stmt = $pdo->prepare("INSERT INTO sections (ProgramID, DepartmentID, SemesterID, ShiftID, Name, InchargeID, HomeRoomID) VALUES (?, ?, ?, ?, ?, ?, ?)");
         $incharge = empty($_POST['incharge_id']) ? null : $_POST['incharge_id'];
-        $stmt->execute([$_POST['program_id'], $_POST['dept_id'], $_POST['semester_id'], $_POST['shift_id'], $_POST['name'], $incharge]);
+        $homeroom = empty($_POST['homeroom_id']) ? null : $_POST['homeroom_id'];
+        $sec_name = empty(trim($_POST['name'])) ? 'None' : trim($_POST['name']);
+        $stmt->execute([$_POST['program_id'], $_POST['dept_id'], $_POST['semester_id'], $_POST['shift_id'], $sec_name, $incharge, $homeroom]);
         $message = "Section added successfully.";
     } elseif ($_POST['action'] === 'delete') {
         $id = $_POST['id'];
@@ -24,9 +26,11 @@ if($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $message = "Section deleted successfully.";
         }
     } elseif ($_POST['action'] === 'edit') {
-        $stmt = $pdo->prepare("UPDATE sections SET ProgramID = ?, DepartmentID = ?, SemesterID = ?, ShiftID = ?, Name = ?, InchargeID = ? WHERE SectionID = ?");
+        $stmt = $pdo->prepare("UPDATE sections SET ProgramID = ?, DepartmentID = ?, SemesterID = ?, ShiftID = ?, Name = ?, InchargeID = ?, HomeRoomID = ? WHERE SectionID = ?");
         $incharge = empty($_POST['incharge_id']) ? null : $_POST['incharge_id'];
-        $stmt->execute([$_POST['program_id'], $_POST['dept_id'], $_POST['semester_id'], $_POST['shift_id'], $_POST['name'], $incharge, $_POST['id']]);
+        $homeroom = empty($_POST['homeroom_id']) ? null : $_POST['homeroom_id'];
+        $sec_name = empty(trim($_POST['name'])) ? 'None' : trim($_POST['name']);
+        $stmt->execute([$_POST['program_id'], $_POST['dept_id'], $_POST['semester_id'], $_POST['shift_id'], $sec_name, $incharge, $homeroom, $_POST['id']]);
         $message = "Section updated successfully.";
     }
 }
@@ -36,15 +40,17 @@ $departments = $pdo->query("SELECT * FROM departments WHERE IsActive = 1")->fetc
 $semesters = $pdo->query("SELECT * FROM semesters WHERE IsActive = 1")->fetchAll();
 $shifts = $pdo->query("SELECT * FROM shifts")->fetchAll();
 $teachers = $pdo->query("SELECT UserID, Name FROM users WHERE Role = 'teacher' AND AccountStatus = 'Active'")->fetchAll();
+$classrooms = $pdo->query("SELECT RoomID, Name FROM rooms WHERE Type = 'Classroom' AND IsActive = 1 ORDER BY Name ASC")->fetchAll();
 
 $query = "
-    SELECT s.*, p.Name as ProgramName, d.Name as DeptName, sem.Label as SemesterName, u.Name as InchargeName, sh.Name as ShiftName
+    SELECT s.*, p.Name as ProgramName, d.Name as DeptName, sem.Label as SemesterName, u.Name as InchargeName, sh.Name as ShiftName, r.Name as RoomName
     FROM sections s
     JOIN programs p ON s.ProgramID = p.ProgramID
     JOIN departments d ON s.DepartmentID = d.DepartmentID
     JOIN semesters sem ON s.SemesterID = sem.SemesterID
     JOIN shifts sh ON s.ShiftID = sh.ShiftID
     LEFT JOIN users u ON s.InchargeID = u.UserID
+    LEFT JOIN rooms r ON s.HomeRoomID = r.RoomID
     ORDER BY p.ProgramID, d.DepartmentID, sem.SemesterID, s.Name
 ";
 $sections = $pdo->query($query)->fetchAll();
@@ -65,7 +71,7 @@ $sections = $pdo->query($query)->fetchAll();
         
         <div class="bg-gray-50 border border-gray-200 p-5 rounded-xl mb-6 shadow-sm">
             <h3 class="font-bold mb-4 text-gray-700 text-sm uppercase tracking-wide border-b border-gray-200 pb-2">Add New Section / Class</h3>
-            <form method="POST" class="grid grid-cols-1 md:grid-cols-7 gap-3 items-end">
+            <form method="POST" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                 <input type="hidden" name="action" value="add">
                 
                 <div>
@@ -110,7 +116,7 @@ $sections = $pdo->query($query)->fetchAll();
                 
                 <div>
                     <label class="block text-xs font-bold text-gray-600 mb-1">Section Name</label>
-                    <input type="text" name="name" placeholder="e.g. A" required class="w-full border border-gray-300 p-2 rounded bg-white focus:ring-1 focus:ring-maroon">
+                    <input type="text" name="name" placeholder="None (Optional)" class="w-full border border-gray-300 p-2 rounded bg-white focus:ring-1 focus:ring-maroon">
                 </div>
                 
                 <div>
@@ -122,9 +128,19 @@ $sections = $pdo->query($query)->fetchAll();
                         <?php endforeach; ?>
                     </select>
                 </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 mb-1">Home Room</label>
+                    <select name="homeroom_id" class="w-full border border-gray-300 p-2 rounded bg-white focus:ring-1 focus:ring-maroon">
+                        <option value="">None (Optional)</option>
+                        <?php foreach($classrooms as $r): ?>
+                            <option value="<?php echo $r['RoomID']; ?>"><?php echo htmlspecialchars($r['Name']); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
                 
                 <div>
-                    <button type="submit" class="w-full bg-[#a60b26] text-white px-2 py-2 rounded font-bold hover:bg-[#8a0a20] transition shadow-sm text-sm border border-transparent">Add Section</button>
+                    <button type="submit" class="w-full bg-[#a60b26] text-white px-2 py-2 rounded font-bold hover:bg-[#8a0a20] transition shadow-sm text-sm border border-transparent">Add</button>
                 </div>
             </form>
         </div>
@@ -170,9 +186,16 @@ $sections = $pdo->query($query)->fetchAll();
                                             <?php echo substr($s['ShiftName'], 0, 1); ?>
                                         </span>
                                     </div>
-                                    <span class="text-[10px] text-gray-500 font-bold truncate max-w-[80px]" title="<?php echo htmlspecialchars($s['InchargeName'] ? $s['InchargeName'] : 'No Incharge'); ?>">
-                                        <?php echo $s['InchargeName'] ? htmlspecialchars($s['InchargeName']) : 'No Incharge'; ?>
-                                    </span>
+                                    <div class="mt-1 border-t border-gray-100 pt-1 w-full text-center">
+                                        <span class="text-[10px] text-gray-500 font-bold max-w-[80px]" title="Incharge: <?php echo htmlspecialchars($s['InchargeName'] ? $s['InchargeName'] : 'None'); ?>">
+                                            <?php echo $s['InchargeName'] ? substr(htmlspecialchars($s['InchargeName']), 0, 10).'.' : 'No Inc.'; ?>
+                                        </span>
+                                        <?php if($s['RoomName']): ?>
+                                        <div class="text-[10px] bg-green-50 text-green-700 font-bold mt-0.5 rounded px-1 max-w-[80px] mx-auto truncate" title="Home Room: <?php echo htmlspecialchars($s['RoomName']); ?>">
+                                            <?php echo htmlspecialchars($s['RoomName']); ?>
+                                        </div>
+                                        <?php endif; ?>
+                                    </div>
                                     
                                     <!-- Hover actions -->
                                     <div class="absolute -top-3 -right-2 hidden group-hover:flex bg-white shadow-md rounded-full border border-gray-200 p-0.5 z-10 gap-1">
@@ -183,7 +206,8 @@ $sections = $pdo->query($query)->fetchAll();
                                             "sid" => $s["SemesterID"],
                                             "shid" => $s["ShiftID"],
                                             "name" => $s["Name"],
-                                            "incharge" => $s["InchargeID"]
+                                            "incharge" => $s["InchargeID"],
+                                            "homeroom" => $s["HomeRoomID"]
                                         ]); ?>)' type="button" class="text-blue-500 hover:text-blue-700 hover:bg-blue-50 p-1 rounded-full" title="Edit Section">
                                             <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" /></svg>
                                         </button>
@@ -209,28 +233,19 @@ $sections = $pdo->query($query)->fetchAll();
 
 <!-- Edit Modal -->
 <div id="editModal" class="fixed inset-0 bg-black/50 flex justify-center items-center z-[100]" style="display: none;">
-    <div class="bg-white p-6 rounded-xl shadow-xl w-full max-w-[450px] border border-gray-100">
+    <div class="bg-white p-6 rounded-xl shadow-xl w-full max-w-[750px] border border-gray-100">
         <h3 class="font-bold text-lg mb-5 text-gray-800 border-b pb-2">Edit Section / Class</h3>
         <form method="POST" class="flex flex-col gap-4">
             <input type="hidden" name="action" value="edit">
             <input type="hidden" name="id" id="edit_id">
             
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div>
                     <label class="block text-xs font-bold text-gray-600 mb-1">Program</label>
                     <select name="program_id" id="edit_prog" required class="w-full border border-gray-300 p-2.5 rounded focus:outline-none focus:ring-1 focus:ring-[#a60b26]">
                         <?php foreach($programs as $p): echo "<option value='{$p['ProgramID']}'>{$p['Name']}</option>"; endforeach; ?>
                     </select>
                 </div>
-                <div>
-                    <label class="block text-xs font-bold text-gray-600 mb-1">Shift</label>
-                    <select name="shift_id" id="edit_shift" required class="w-full border border-gray-300 p-2.5 rounded focus:outline-none focus:ring-1 focus:ring-[#a60b26]">
-                        <?php foreach($shifts as $sh): echo "<option value='{$sh['ShiftID']}'>{$sh['Name']}</option>"; endforeach; ?>
-                    </select>
-                </div>
-            </div>
-            
-            <div class="grid grid-cols-2 gap-3">
                 <div>
                     <label class="block text-xs font-bold text-gray-600 mb-1">Group/Dept</label>
                     <select name="dept_id" id="edit_dept" required class="w-full border border-gray-300 p-2.5 rounded focus:outline-none focus:ring-1 focus:ring-[#a60b26]">
@@ -243,14 +258,24 @@ $sections = $pdo->query($query)->fetchAll();
                         <?php foreach($semesters as $s): echo "<option value='{$s['SemesterID']}' data-prog='{$s['ProgramID']}'>{$s['Label']}</option>"; endforeach; ?>
                     </select>
                 </div>
-            </div>
-            
-            <div class="grid grid-cols-3 gap-3">
-                <div class="col-span-1">
-                    <label class="block text-xs font-bold text-gray-600 mb-1">Sec Name</label>
-                    <input type="text" name="name" id="edit_name" required class="w-full border border-gray-300 p-2.5 rounded focus:outline-none focus:ring-1 focus:ring-[#a60b26]">
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 mb-1">Shift</label>
+                    <select name="shift_id" id="edit_shift" required class="w-full border border-gray-300 p-2.5 rounded focus:outline-none focus:ring-1 focus:ring-[#a60b26]">
+                        <?php foreach($shifts as $sh): echo "<option value='{$sh['ShiftID']}'>{$sh['Name']}</option>"; endforeach; ?>
+                    </select>
                 </div>
-                <div class="col-span-2">
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 mb-1">Sec Name</label>
+                    <input type="text" name="name" id="edit_name" placeholder="None (Optional)" class="w-full border border-gray-300 p-2.5 rounded focus:outline-none focus:ring-1 focus:ring-[#a60b26]">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 mb-1">Home Room</label>
+                    <select name="homeroom_id" id="edit_homeroom" class="w-full border border-gray-300 p-2.5 rounded focus:outline-none focus:ring-1 focus:ring-[#a60b26]">
+                        <option value="">None</option>
+                        <?php foreach($classrooms as $r): echo "<option value='{$r['RoomID']}'>{$r['Name']}</option>"; endforeach; ?>
+                    </select>
+                </div>
+                <div class="md:col-span-2">
                     <label class="block text-xs font-bold text-gray-600 mb-1">Class Incharge</label>
                     <select name="incharge_id" id="edit_incharge" class="w-full border border-gray-300 p-2.5 rounded focus:outline-none focus:ring-1 focus:ring-[#a60b26]">
                         <option value="">None</option>
@@ -276,6 +301,7 @@ function openEditModal(data) {
     document.getElementById('edit_shift').value = data.shid;
     document.getElementById('edit_name').value = data.name;
     document.getElementById('edit_incharge').value = data.incharge || '';
+    document.getElementById('edit_homeroom').value = data.homeroom || '';
     
     document.getElementById('editModal').style.display = 'flex';
 }

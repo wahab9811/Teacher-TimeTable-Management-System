@@ -15,7 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $proxyDate = $_POST['proxy_date'] ?? '';
 
     if ($myTT && $targetTeacherID && $proxyDate) {
-        $curr = $pdo->prepare("SELECT * FROM timetable WHERE TimetableID = ? AND TeacherID = ? AND IsFree = 0");
+        $curr = $pdo->prepare("SELECT * FROM timetable WHERE TimetableID = ? AND TeacherID = ? AND IsFree = 0 AND Status = 'published'");
         $curr->execute([$myTT, $teacherId]);
         $cData = $curr->fetch();
         
@@ -28,7 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             // Check if target teacher is free at that slot on that date
             // We can just rely on basic schedule check
-            $busy = $pdo->prepare("SELECT COUNT(*) FROM timetable WHERE TeacherID = ? AND Day = ? AND SlotID = ? AND IsFree = 0");
+            $busy = $pdo->prepare("SELECT COUNT(*) FROM timetable WHERE TeacherID = ? AND Day = ? AND SlotID = ? AND IsFree = 0 AND Status = 'published'");
             $busy->execute([$targetTeacherID, $cData['Day'], $cData['SlotID']]);
             
             if ($busy->fetchColumn() > 0) {
@@ -56,7 +56,7 @@ $stmt = $pdo->prepare("SELECT t.*, ts.PeriodNumber, c.Name as CourseName, sec.Na
                        JOIN time_slots ts ON t.SlotID=ts.SlotID 
                        JOIN courses c ON t.CourseID=c.CourseID 
                        LEFT JOIN sections sec ON t.SectionID=sec.SectionID
-                       WHERE t.TeacherID=? AND t.IsFree=0 ORDER BY FIELD(t.Day, 'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'), ts.PeriodNumber");
+                       WHERE t.TeacherID=? AND t.IsFree=0 AND t.Status='published' ORDER BY FIELD(t.Day, 'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'), ts.PeriodNumber");
 $stmt->execute([$teacherId]);
 $mySlots = $stmt->fetchAll();
 

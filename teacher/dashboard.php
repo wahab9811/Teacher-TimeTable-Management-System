@@ -31,7 +31,7 @@ $coursesCount = $stmtC->fetchColumn();
 // Fetch today's timetable
 $stmtTT = $pdo->prepare("SELECT t.ShiftID, t.IsFree, t.TimetableID 
                          FROM timetable t 
-                         WHERE t.TeacherID = ? AND t.Day = ?");
+                         WHERE t.TeacherID = ? AND t.Day = ? AND t.Status = 'published'");
 $stmtTT->execute([$teacherId, $todayName]);
 $todayTT = $stmtTT->fetchAll();
 
@@ -72,7 +72,7 @@ $activeSubCount->execute([$teacherId, $todayDate]);
 $activeSubCountVal = $activeSubCount->fetchColumn();
 
 // Total assigned periods this week (excluding free periods)
-$stmtWeek = $pdo->prepare("SELECT COUNT(*) FROM timetable WHERE TeacherID = ? AND IsFree = 0");
+$stmtWeek = $pdo->prepare("SELECT COUNT(*) FROM timetable WHERE TeacherID = ? AND IsFree = 0 AND Status = 'published'");
 $stmtWeek->execute([$teacherId]);
 $weekAssigned = (int)$stmtWeek->fetchColumn();
 

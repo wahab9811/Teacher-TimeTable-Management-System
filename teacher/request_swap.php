@@ -15,11 +15,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $targetTT = $_POST['target_tt_id'] ?? 0;
 
     if ($myTT && $targetTT) {
-        $curr = $pdo->prepare("SELECT t.*, c.RoomType FROM timetable t LEFT JOIN courses c ON t.CourseID = c.CourseID WHERE t.TimetableID = ? AND t.TeacherID = ?");
+        $curr = $pdo->prepare("SELECT t.*, c.RoomType FROM timetable t LEFT JOIN courses c ON t.CourseID = c.CourseID WHERE t.TimetableID = ? AND t.TeacherID = ? AND t.Status = 'published'");
         $curr->execute([$myTT, $teacherId]);
         $cData = $curr->fetch();
         
-        $targ = $pdo->prepare("SELECT t.*, c.RoomType FROM timetable t LEFT JOIN courses c ON t.CourseID = c.CourseID WHERE t.TimetableID = ?");
+        $targ = $pdo->prepare("SELECT t.*, c.RoomType FROM timetable t LEFT JOIN courses c ON t.CourseID = c.CourseID WHERE t.TimetableID = ? AND t.Status = 'published'");
         $targ->execute([$targetTT]);
         $tData = $targ->fetch();
 
@@ -69,7 +69,7 @@ $stmt = $pdo->prepare("SELECT t.*, ts.PeriodNumber, c.Name as CourseName, sec.Na
                        JOIN time_slots ts ON t.SlotID=ts.SlotID 
                        JOIN courses c ON t.CourseID=c.CourseID 
                        LEFT JOIN sections sec ON t.SectionID=sec.SectionID
-                       WHERE t.TeacherID=? AND t.IsFree=0 ORDER BY FIELD(t.Day, 'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'), ts.PeriodNumber");
+                       WHERE t.TeacherID=? AND t.IsFree=0 AND t.Status='published' ORDER BY FIELD(t.Day, 'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'), ts.PeriodNumber");
 $stmt->execute([$teacherId]);
 $mySlots = $stmt->fetchAll();
 ?>

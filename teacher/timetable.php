@@ -25,7 +25,7 @@ $stmt = $pdo->prepare("SELECT t.*, ts.PeriodNumber,
                        LEFT JOIN programs p ON t.ProgramID=p.ProgramID
                        LEFT JOIN departments d ON t.DepartmentID=d.DepartmentID
                        LEFT JOIN semesters s ON t.SemesterID=s.SemesterID
-                       WHERE t.TeacherID=? 
+                       WHERE t.TeacherID=? AND t.Status = 'published'
                        ORDER BY t.Day, ts.PeriodNumber");
 $stmt->execute([$teacherId]);
 $tt = $stmt->fetchAll();

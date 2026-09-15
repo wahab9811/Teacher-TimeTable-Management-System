@@ -4,11 +4,23 @@ session_start();
 if(!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') { header("Location: /login.php"); exit; }
 require_once __DIR__ . '/../config/db.php';
 
+// Pagination logic
+$limit = 10;
+$currentPageNum = isset($_GET['page']) && $_GET['page'] > 0 ? (int)$_GET['page'] : 1;
+$offset = ($currentPageNum - 1) * $limit;
+
+// Count total records
+$totalStmt = $pdo->query("SELECT COUNT(*) FROM users u JOIN designation_workload d ON u.Designation=d.Designation WHERE Role='teacher'");
+$totalRows = $totalStmt->fetchColumn();
+$totalPages = ceil($totalRows / $limit);
+
 // Teacher Workload Report logic
 $stmt = $pdo->query("SELECT u.UserID, u.Name, u.Designation, u.IsHOD, d.MaxWeeklyPeriods, d.HODWeeklyPeriods, dep.Name as DeptName 
                      FROM users u 
                      JOIN designation_workload d ON u.Designation=d.Designation 
-                     LEFT JOIN departments dep ON u.HOD_DepartmentID=dep.DepartmentID WHERE Role='teacher'");
+                     LEFT JOIN departments dep ON u.HOD_DepartmentID=dep.DepartmentID WHERE Role='teacher'
+                     ORDER BY u.Name ASC
+                     LIMIT $limit OFFSET $offset");
 $teachers = $stmt->fetchAll();
 
 foreach($teachers as &$t) {
@@ -65,6 +77,41 @@ unset($t); // Fix: Unset reference to prevent overwriting the last element in th
                 <?php endforeach; ?>
             </tbody>
         </table>
+        
+        <!-- Pagination Controls -->
+        <?php if($totalPages > 1): ?>
+        <div class="flex justify-between items-center mt-6 border-t pt-4">
+            <span class="text-sm text-gray-600 font-semibold">Showing page <?php echo $currentPageNum; ?> of <?php echo $totalPages; ?></span>
+            <div class="flex gap-1">
+                <?php if($currentPageNum > 1): ?>
+                    <a href="?page=<?php echo $currentPageNum - 1; ?>" class="px-3 py-1 bg-gray-100 border rounded text-gray-700 hover:bg-gray-200">Previous</a>
+                <?php endif; ?>
+                
+                <?php
+                $startPg = max(1, $currentPageNum - 2);
+                $endPg = min($totalPages, $currentPageNum + 2);
+                
+                if ($startPg > 1) {
+                    echo '<a href="?page=1" class="px-3 py-1 bg-gray-100 border rounded text-gray-700 hover:bg-gray-200">1</a>';
+                    if ($startPg > 2) echo '<span class="px-2 py-1 text-gray-400">...</span>';
+                }
+                
+                for($i = $startPg; $i <= $endPg; $i++): ?>
+                    <a href="?page=<?php echo $i; ?>" class="px-3 py-1 border rounded <?php echo $i === $currentPageNum ? 'bg-maroon text-white font-bold' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'; ?>"><?php echo $i; ?></a>
+                <?php endfor; ?>
+                
+                <?php if ($endPg < $totalPages): ?>
+                    <?php if ($endPg < $totalPages - 1) echo '<span class="px-2 py-1 text-gray-400">...</span>'; ?>
+                    <a href="?page=<?php echo $totalPages; ?>" class="px-3 py-1 bg-gray-100 border rounded text-gray-700 hover:bg-gray-200"><?php echo $totalPages; ?></a>
+                <?php endif; ?>
+                
+                <?php if($currentPageNum < $totalPages): ?>
+                    <a href="?page=<?php echo $currentPageNum + 1; ?>" class="px-3 py-1 bg-gray-100 border rounded text-gray-700 hover:bg-gray-200">Next</a>
+                <?php endif; ?>
+            </div>
+        </div>
+        <?php endif; ?>
+        
         </div>
     </div>
 </div>
